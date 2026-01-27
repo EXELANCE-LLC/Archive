@@ -3,227 +3,249 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ZipStudio v0.4</title>
+    <title>ZipStudio v0.5</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono&display=swap');
-        :root { --zinc-200: #e4e4e7; --zinc-950: #09090b; }
-        body { font-family: 'Inter', sans-serif; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; background: #fff; }
+        body { font-family: 'Inter', sans-serif; height: 100dvh; margin: 0; display: grid; grid-template-rows: 56px 1fr; overflow: hidden; background: #fff; }
+        .app-grid { display: grid; grid-template-columns: 280px 1fr; overflow: hidden; height: 100%; }
+        @media (max-width: 768px) { .app-grid { grid-template-columns: 1fr; } }
         
-        /* Grid Layout Fix */
-        .app-container { display: grid; grid-template-columns: 280px 1fr; height: calc(100% - 56px); }
-        @media (max-width: 768px) { .app-container { grid-template-columns: 1fr; } }
+        #sidebar { border-right: 1px solid #e4e4e7; display: flex; flex-direction: column; background: #fff; z-index: 50; }
+        @media (max-width: 768px) { #sidebar { position: fixed; inset: 0; transform: translateX(-100%); transition: transform 0.2s ease-in-out; } #sidebar.active { transform: translateX(0); } }
 
-        #sidebar { background: #fff; border-right: 1px solid var(--zinc-200); display: flex; flex-direction: column; overflow: hidden; z-index: 50; }
-        @media (max-width: 768px) { 
-            #sidebar { position: fixed; inset: 0; transform: translateX(-100%); transition: transform 0.2s ease; }
-            #sidebar.active { transform: translateX(0); }
-        }
-
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        iframe { border: none; width: 100%; height: 100%; background: #fff; }
-        .code-container { background: #0d0d0d; height: 100%; overflow: auto; }
+        #viewer-container { position: relative; flex: 1; background: #fafafa; overflow: hidden; }
+        iframe { width: 100%; height: 100%; border: none; background: #fff; }
         
-        /* Toast Animation */
-        #toast { transition: all 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28); }
-        .toast-hide { transform: translate(-50%, 100px); opacity: 0; }
-        .toast-show { transform: translate(-50%, 0); opacity: 1; }
+        .code-view { background: #09090b !important; margin: 0 !important; font-family: 'JetBrains Mono', monospace; font-size: 12px; height: 100%; overflow: auto; }
+        .toast-swipe { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); cursor: grab; }
     </style>
 </head>
 <body class="select-none">
 
-    <header class="h-14 border-b zinc-border flex items-center justify-between px-4 shrink-0 bg-white z-[60]">
-        <div class="flex items-center gap-3">
-            <button id="mBtn" class="p-2 hover:bg-zinc-100 rounded-md md:hidden">
+    <header class="h-14 border-b border-zinc-200 flex items-center justify-between px-5 bg-white shrink-0">
+        <div class="flex items-center gap-4">
+            <button id="mToggle" class="p-2 -ml-2 hover:bg-zinc-100 rounded-md md:hidden">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
             </button>
-            <span class="text-xs font-bold tracking-tighter uppercase">ZipStudio <span class="text-zinc-400 font-normal">0.4</span></span>
+            <span class="text-xs font-bold tracking-tighter uppercase">ZipStudio <span class="text-zinc-400 font-normal">v0.5</span></span>
         </div>
-        <label class="bg-zinc-950 text-white px-4 py-1.5 rounded-md text-[11px] font-medium cursor-pointer active:scale-95 transition-all">
-            Deploy Archive
-            <input type="file" id="zipIn" class="hidden" accept=".zip">
+        <label class="bg-zinc-950 hover:bg-zinc-800 text-white px-4 py-1.5 rounded text-[11px] font-semibold cursor-pointer transition-all active:scale-95 shadow-sm">
+            Deploy
+            <input type="file" id="zipInput" class="hidden" accept=".zip">
         </label>
     </header>
 
-    <div class="app-container relative">
+    <div class="app-grid">
         <aside id="sidebar">
             <div class="p-4 border-b border-zinc-100 flex items-center justify-between bg-zinc-50/50">
-                <span class="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Workspace</span>
-                <button id="closeM" class="md:hidden"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+                <span class="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Explorer</span>
+                <button id="mClose" class="md:hidden p-1 text-zinc-400"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
             </div>
-            <div id="tree" class="flex-1 overflow-y-auto no-scrollbar p-2">
-                <div class="py-12 text-center text-zinc-300 text-[11px] italic">No active deployment.</div>
+            <div id="fileList" class="flex-1 overflow-y-auto p-2 space-y-0.5 custom-scrollbar">
+                <p class="py-10 text-center text-zinc-300 text-[11px] italic">Ready for deployment.</p>
             </div>
         </aside>
 
-        <main class="flex flex-col min-w-0 relative">
-            <div class="h-10 bg-white border-b border-zinc-200 flex items-center justify-between px-4 shrink-0">
+        <main class="flex flex-col min-w-0 bg-white">
+            <div class="h-10 border-b border-zinc-200 flex items-center justify-between px-4 bg-white shrink-0">
                 <div class="flex h-full">
-                    <button id="tP" class="px-4 text-[10px] font-bold border-b-2 border-zinc-950 text-zinc-900">PREVIEW</button>
-                    <button id="tC" class="px-4 text-[10px] font-bold border-b-2 border-transparent text-zinc-400">SOURCE</button>
+                    <button id="btnP" class="px-4 text-[10px] font-bold border-b-2 border-zinc-950 text-zinc-900 transition-all uppercase">Preview</button>
+                    <button id="btnC" class="px-4 text-[10px] font-bold border-b-2 border-transparent text-zinc-400 hover:text-zinc-600 transition-all uppercase">Source</button>
                 </div>
-                <div id="fName" class="text-[9px] font-mono text-zinc-400 truncate ml-4"></div>
+                <div id="pathTag" class="text-[9px] font-mono text-zinc-400 truncate ml-4 max-w-[180px]"></div>
             </div>
 
-            <div class="flex-1 relative">
-                <div id="pView" class="absolute inset-0 z-10 bg-white">
-                    <iframe id="ifr" sandbox="allow-scripts allow-same-origin"></iframe>
+            <div class="flex-1 relative overflow-hidden" id="viewport">
+                <div id="previewWrap" class="absolute inset-0 z-10 bg-white">
+                    <div id="ifrContainer" class="w-full h-full"></div>
                 </div>
-                <div id="cView" class="absolute inset-0 z-0 hidden code-container">
-                    <pre class="m-0 p-5"><code id="code" class="language-markup text-xs"></code></pre>
+                <div id="codeWrap" class="absolute inset-0 z-0 bg-zinc-950 overflow-auto hidden">
+                    <pre class="code-view"><code id="codeOutput" class="language-markup"></code></pre>
                 </div>
             </div>
         </main>
     </div>
 
-    <div id="toast" class="toast-hide fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] bg-zinc-950 text-white px-5 py-3 rounded-full shadow-2xl flex items-center gap-3">
-        <span id="tMsg" class="text-[11px] font-medium"></span>
+    <div id="toast" class="toast-swipe fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] translate-y-24 opacity-0 bg-zinc-950 text-white px-5 py-3 rounded-full shadow-2xl flex items-center gap-3">
+        <div id="tSpin" class="w-3 h-3 border-2 border-white/20 border-t-white rounded-full animate-spin hidden"></div>
+        <span id="tMsg" class="text-[11px] font-medium tracking-wide"></span>
     </div>
 
     <script>
-        let zipData = null;
-        let blobCache = new Map();
+        let currentZip = null;
+        let blobMap = new Map();
+        let isProcessing = false;
 
-        const dom = {
-            tree: document.getElementById('tree'),
-            ifr: document.getElementById('ifr'),
-            code: document.getElementById('code'),
-            fName: document.getElementById('fName'),
+        const el = {
+            zipInput: document.getElementById('zipInput'),
+            fileList: document.getElementById('fileList'),
+            ifrContainer: document.getElementById('ifrContainer'),
+            codeOutput: document.getElementById('codeOutput'),
+            pathTag: document.getElementById('pathTag'),
             toast: document.getElementById('toast'),
             tMsg: document.getElementById('tMsg'),
-            pView: document.getElementById('pView'),
-            cView: document.getElementById('cView'),
-            tP: document.getElementById('tP'),
-            tC: document.getElementById('tC'),
+            tSpin: document.getElementById('tSpin'),
+            previewWrap: document.getElementById('previewWrap'),
+            codeWrap: document.getElementById('codeWrap'),
+            btnP: document.getElementById('btnP'),
+            btnC: document.getElementById('btnC'),
             sidebar: document.getElementById('sidebar')
         };
 
-        // --- UI Utils ---
-        const notify = (msg) => {
-            dom.tMsg.innerText = msg;
-            dom.toast.className = 'toast-show fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] bg-zinc-950 text-white px-5 py-3 rounded-full shadow-2xl flex items-center gap-3';
-            setTimeout(() => dom.toast.className = 'toast-hide fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] bg-zinc-950 text-white px-5 py-3 rounded-full shadow-2xl flex items-center gap-3', 3000);
-        };
+        // --- TOAST & SWIPE ---
+        function notify(msg, loading = false) {
+            el.tMsg.innerText = msg;
+            el.tSpin.classList.toggle('hidden', !loading);
+            el.toast.classList.remove('translate-y-24', 'opacity-0');
+            if(!loading) setTimeout(hideToast, 3500);
+        }
+        function hideToast() { el.toast.classList.add('translate-y-24', 'opacity-0'); }
+        
+        let startX = 0;
+        el.toast.addEventListener('touchstart', e => startX = e.touches[0].clientX);
+        el.toast.addEventListener('touchmove', e => {
+            let diff = e.touches[0].clientX - startX;
+            el.toast.style.transform = `translate(calc(-50% + ${diff}px), 0)`;
+            if(Math.abs(diff) > 120) hideToast();
+        });
 
-        const setTab = (tab) => {
-            const isP = tab === 'p';
-            dom.pView.classList.toggle('hidden', !isP);
-            dom.cView.classList.toggle('hidden', isP);
-            dom.tP.className = isP ? "px-4 text-[10px] font-bold border-b-2 border-zinc-950 text-zinc-900" : "px-4 text-[10px] font-bold border-b-2 border-transparent text-zinc-400";
-            dom.tC.className = !isP ? "px-4 text-[10px] font-bold border-b-2 border-zinc-950 text-zinc-900" : "px-4 text-[10px] font-bold border-b-2 border-transparent text-zinc-400";
-        };
+        // --- SIDEBAR ---
+        document.getElementById('mToggle').onclick = () => el.sidebar.classList.add('active');
+        document.getElementById('mClose').onclick = () => el.sidebar.classList.remove('active');
 
-        document.getElementById('mBtn').onclick = () => dom.sidebar.classList.add('active');
-        document.getElementById('closeM').onclick = () => dom.sidebar.classList.remove('active');
-        dom.tP.onclick = () => setTab('p');
-        dom.tC.onclick = () => setTab('c');
-
-        // --- Core Engine ---
-        document.getElementById('zipIn').onchange = async (e) => {
+        // --- CORE LOGIC ---
+        el.zipInput.onchange = async (e) => {
+            if(isProcessing) return;
             const file = e.target.files[0];
-            if (!file) return;
+            if(!file) return;
 
-            notify("Deploying...");
+            isProcessing = true;
+            notify("Deploying...", true);
             
-            // Memory Cleanup
-            blobCache.forEach(u => URL.revokeObjectURL(u));
-            blobCache.clear();
-            dom.ifr.src = "about:blank";
+            // Hard Memory Flush
+            blobMap.forEach(u => URL.revokeObjectURL(u));
+            blobMap.clear();
+            el.ifrContainer.innerHTML = ''; 
 
             try {
-                zipData = await JSZip.loadAsync(file);
-                renderTree();
+                currentZip = await JSZip.loadAsync(file);
+                renderFileList();
                 
-                const files = Object.keys(zipData.files);
-                const index = files.find(f => f.toLowerCase() === 'index.html') || 
-                              files.find(f => f.toLowerCase().endsWith('index.html')) || 
-                              files.find(f => f.toLowerCase().endsWith('.html'));
-                
-                if (index) await loadFile(index);
-                notify("Success");
+                // Smart Index Hunt
+                const allFiles = Object.keys(currentZip.files);
+                const target = allFiles.find(f => f.toLowerCase() === 'index.html') || 
+                               allFiles.find(f => f.toLowerCase().endsWith('index.html')) || 
+                               allFiles.find(f => f.toLowerCase().endsWith('.html'));
+
+                if(target) await loadFile(target);
+                notify("Live on v0.5");
             } catch (err) {
-                notify("Error: Zip process failed");
+                notify("Deployment failed");
+            } finally {
+                isProcessing = false;
             }
         };
 
-        function renderTree() {
-            dom.tree.innerHTML = '';
-            Object.keys(zipData.files).filter(p => !zipData.files[p].dir).sort().forEach(path => {
-                const el = document.createElement('div');
-                el.className = "flex items-center gap-2 px-3 py-2 text-[12px] font-medium rounded-md cursor-pointer hover:bg-zinc-50 text-zinc-600 truncate transition-colors";
-                el.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-zinc-300 shrink-0"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg><span class="truncate">${path}</span>`;
-                el.onclick = () => { loadFile(path); dom.sidebar.classList.remove('active'); };
-                dom.tree.appendChild(el);
+        function renderFileList() {
+            el.fileList.innerHTML = '';
+            const files = Object.keys(currentZip.files).filter(p => !currentZip.files[p].dir).sort();
+            
+            files.forEach(path => {
+                const item = document.createElement('div');
+                item.className = "flex items-center gap-3 px-3 py-2 text-[12px] font-medium rounded-md cursor-pointer hover:bg-zinc-50 text-zinc-600 transition-all truncate";
+                item.innerHTML = `
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 text-zinc-300"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+                    <span class="truncate">${path}</span>
+                `;
+                item.onclick = () => { loadFile(path); el.sidebar.classList.remove('active'); };
+                el.fileList.appendChild(item);
             });
         }
 
         async function loadFile(path) {
             try {
-                dom.fName.innerText = path;
-                const fileObj = zipData.files[path];
-                if (!fileObj) return;
+                el.pathTag.innerText = path;
+                const file = currentZip.files[path];
+                if(!file) return;
 
-                const text = await fileObj.async("string");
                 const ext = path.split('.').pop().toLowerCase();
+                const content = await file.async("string");
 
-                // Code Update
-                dom.code.textContent = text;
-                dom.code.className = `language-${getPrism(ext)}`;
-                Prism.highlightElement(dom.code);
+                // Prism Safety: Don't highlight files > 500KB to prevent freeze
+                el.codeOutput.textContent = content.length > 500000 ? "File too large for syntax highlighting." : content;
+                if(content.length <= 500000) {
+                    el.codeOutput.className = `language-${getPrism(ext)}`;
+                    Prism.highlightElement(el.codeOutput);
+                }
 
-                if (ext === 'html') {
-                    const parser = new DOMParser();
-                    const doc = parser.parseFromString(text, 'text/html');
+                if(ext === 'html') {
+                    const doc = new DOMParser().parseFromString(content, 'text/html');
                     const base = path.includes('/') ? path.substring(0, path.lastIndexOf("/") + 1) : "";
 
-                    // Asset Resolution with null checks
-                    const tasks = [];
-                    ['link', 'script', 'img'].forEach(tag => {
-                        const attr = tag === 'link' ? 'href' : 'src';
-                        doc.querySelectorAll(tag).forEach(node => {
-                            const val = node.getAttribute(attr);
-                            if (val && !val.startsWith('http') && !val.startsWith('data:')) {
-                                const abs = normalize(base + val);
-                                if (zipData.files[abs]) {
-                                    tasks.push(zipData.files[abs].async("blob").then(b => {
+                    // On-demand Asset Resolution
+                    const tags = [{t:'link', a:'href'}, {t:'script', a:'src'}, {t:'img', a:'src'}];
+                    const promises = [];
+
+                    tags.forEach(tag => {
+                        doc.querySelectorAll(tag.t).forEach(node => {
+                            const val = node.getAttribute(tag.a);
+                            if(val && !val.startsWith('http') && !val.startsWith('data:')) {
+                                const abs = resolvePath(base, val);
+                                if(currentZip.files[abs]) {
+                                    promises.push(currentZip.files[abs].async("blob").then(b => {
                                         const u = URL.createObjectURL(new Blob([b], {type: getMime(abs.split('.').pop())}));
-                                        blobCache.set(abs, u);
-                                        node.setAttribute(attr, u);
+                                        blobMap.set(abs, u);
+                                        node.setAttribute(tag.a, u);
                                     }));
                                 }
                             }
                         });
                     });
 
-                    await Promise.all(tasks);
+                    await Promise.all(promises);
+
+                    // --- ATOMIC REFRESH ---
+                    el.ifrContainer.innerHTML = '';
+                    const ifr = document.createElement('iframe');
+                    ifr.setAttribute('sandbox', 'allow-scripts allow-same-origin');
+                    el.ifrContainer.appendChild(ifr);
                     
-                    if (dom.ifr.src.startsWith('blob:')) URL.revokeObjectURL(dom.ifr.src);
                     const finalBlob = new Blob([doc.documentElement.outerHTML], { type: 'text/html' });
-                    dom.ifr.src = URL.createObjectURL(finalBlob);
-                    setTab('p');
+                    ifr.src = URL.createObjectURL(finalBlob);
+                    
+                    switchTab('p');
                 } else {
-                    setTab('c');
+                    switchTab('c');
                 }
             } catch (e) {
-                console.error("Load failed:", e);
-                notify("Failed to load file");
+                notify("Error loading file");
             }
         }
 
-        function normalize(p) {
-            let s = [];
-            p.split('/').forEach(x => {
-                if(x === '..') s.pop();
-                else if(x !== '.' && x !== '') s.push(x);
-            });
-            return s.join('/');
+        function resolvePath(base, rel) {
+            const stack = base.split('/').filter(Boolean);
+            const parts = rel.split('/').filter(Boolean);
+            for (const p of parts) {
+                 if(p === '..') stack.pop();
+                else if(p !== '.') stack.push(p);
+            }
+            return stack.join('/');
+        }
+
+        function switchTab(m) {
+            const isP = m === 'p';
+            el.previewWrap.classList.toggle('hidden', !isP);
+            el.codeWrap.classList.toggle('hidden', isP);
+            el.btnP.className = isP ? "px-4 text-[10px] font-bold border-b-2 border-zinc-950 text-zinc-900" : "px-4 text-[10px] font-bold border-b-2 border-transparent text-zinc-400";
+            el.btnC.className = !isP ? "px-4 text-[10px] font-bold border-b-2 border-zinc-950 text-zinc-900" : "px-4 text-[10px] font-bold border-b-2 border-transparent text-zinc-400";
         }
 
         function getMime(e) { return {'html':'text/html','css':'text/css','js':'text/javascript','png':'image/png','jpg':'image/jpeg','svg':'image/svg+xml'}[e] || 'text/plain'; }
-        function getPrism(e) { return {'js':'javascript','css':'css','html':'markup'}[e] || 'javascript'; }
+        function getPrism(e) { return {'js':'javascript','css':'css','html':'markup','json':'json'}[e] || 'javascript'; }
     </script>
 </body>
 </html>
