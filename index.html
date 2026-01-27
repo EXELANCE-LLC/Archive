@@ -1395,44 +1395,58 @@
             // ERROR HANDLING FOR IFRAME
             // ============================================================
             
+            // No longer inject scripts into HTML - this breaks React hydration
+            // Instead, we attach error handlers after iframe loads via contentWindow
             function injectErrorHandler(html) {
-                const scriptOpen = '<' + 'script>';
-                const scriptClose = '</' + 'script>';
-                
-                // EARLY error catcher - goes in <head> to catch React errors
-                // Only attaches listeners, doesn't modify anything
-                const earlyHandler = `window.__zipErrors=[];
-window.onerror=function(m,u,l,c,e){window.__zipErrors.push({m:m,u:u,l:l,c:c,s:e?e.stack:null});window.parent.postMessage({type:'iframe-error',data:{message:String(m),source:u,line:l,column:c,stack:e?e.stack:null}},'*');};
-window.onunhandledrejection=function(e){var m=e.reason?(e.reason.message||String(e.reason)):'Unknown';window.__zipErrors.push({m:m});window.parent.postMessage({type:'iframe-error',data:{message:'Promise: '+m,stack:e.reason?e.reason.stack:null}},'*');};`;
-                
-                // LATE notifier - goes before </body>
-                const lateHandler = `window.parent.postMessage({type:'iframe-dom-ready'},'*');
-window.addEventListener('load',function(){window.parent.postMessage({type:'iframe-loaded'},'*');});`;
-                
-                const earlyScript = scriptOpen + earlyHandler + scriptClose;
-                const lateScript = scriptOpen + lateHandler + scriptClose;
-                
-                let result = html;
-                
-                // Insert early handler right after <head>
-                if (result.includes('<head>')) {
-                    result = result.replace('<head>', '<head>' + earlyScript);
-                } else if (result.includes('<head ')) {
-                    result = result.replace(/<head\s[^>]*>/, '$&' + earlyScript);
-                } else if (result.includes('<html>')) {
-                    result = result.replace('<html>', '<html><head>' + earlyScript + '</head>');
-                } else {
-                    result = earlyScript + result;
+                // Return HTML unchanged to preserve React hydration
+                return html;
+            }
+            
+            // Attach error handlers to iframe after it loads (same-origin blob URLs allow this)
+            function attachIframeErrorHandlers() {
+                try {
+                    const win = DOM.mainIframe.contentWindow;
+                    if (!win) return;
+                    
+                    // Error handler
+                    win.onerror = function(msg, url, line, col, error) {
+                        Logger.error(`[Preview] ${msg} (line ${line})`);
+                        if (error && error.stack) {
+                            Logger.error(`Stack: ${error.stack}`);
+                        }
+                        return false;
+                    };
+                    
+                    // Promise rejection handler
+                    win.onunhandledrejection = function(event) {
+                        const msg = event.reason ? (event.reason.message || String(event.reason)) : 'Unknown';
+                        Logger.error(`[Preview] Promise: ${msg}`);
+                        if (event.reason && event.reason.stack) {
+                            Logger.error(`Stack: ${event.reason.stack}`);
+                        }
+                    };
+                    
+                    // Console proxy
+                    ['log', 'info', 'warn', 'error'].forEach(method => {
+                        const original = win.console[method];
+                        win.console[method] = function(...args) {
+                            const message = args.map(arg => {
+                                try {
+                                    return typeof arg === 'object' ? JSON.stringify(arg) : String(arg);
+                                } catch(e) {
+                                    return String(arg);
+                                }
+                            }).join(' ');
+                            Logger.add(method, `[Preview] ${message}`, 'iframe');
+                            original.apply(win.console, args);
+                        };
+                    });
+                    
+                    Logger.info('Error handlers attached to preview');
+                } catch (e) {
+                    // Cross-origin or other security restriction
+                    Logger.warn('Could not attach error handlers: ' + e.message);
                 }
-                
-                // Insert late handler before </body>
-                if (result.includes('</body>')) {
-                    result = result.replace('</body>', lateScript + '</body>');
-                } else {
-                    result = result + lateScript;
-                }
-                
-                return result;
             }
             
             // Listen for iframe messages
@@ -1574,6 +1588,8 @@ window.addEventListener('load',function(){window.parent.postMessage({type:'ifram
                             
                             DOM.mainIframe.onload = () => {
                                 clearTimeout(timeout);
+                                // Attach error handlers after iframe loads
+                                setTimeout(() => attachIframeErrorHandlers(), 100);
                                 resolve();
                             };
                             
@@ -1590,6 +1606,9 @@ window.addEventListener('load',function(){window.parent.postMessage({type:'ifram
                         setProgress(100);
                         switchTab('preview');
                         Logger.info('Preview loaded successfully');
+                        
+                        // Try to attach error handlers again after a delay (for late errors)
+                        setTimeout(() => attachIframeErrorHandlers(), 500);
                         
                     } else if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'ico', 'bmp'].includes(ext)) {
                         const blobUrl = await createBlobUrl(path);
