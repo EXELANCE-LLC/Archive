@@ -946,6 +946,7 @@
                 currentZip: null,
                 activeBlobs: new Map(),
                 currentFile: null,
+                currentPreviewBlob: null,
                 isLoading: false,
                 abortController: null,
                 fileCache: new Map(),
@@ -1171,10 +1172,14 @@
                     state.abortController.abort();
                     state.abortController = null;
                 }
+                // Clean preview blob
+                if (state.currentPreviewBlob) {
+                    URL.revokeObjectURL(state.currentPreviewBlob);
+                    state.currentPreviewBlob = null;
+                }
                 cleanupBlobs();
                 state.fileCache.clear();
                 state.processedHtmlCache.clear();
-                DOM.mainIframe.srcdoc = '';
                 DOM.mainIframe.src = 'about:blank';
             }
             
@@ -1394,44 +1399,35 @@
                 const scriptOpen = '<' + 'script>';
                 const scriptClose = '</' + 'script>';
                 
+                // Minimal error handler that runs AFTER page load to not interfere with React hydration
                 const errorCode = `(function() {
-    window.onerror = function(msg, url, line, col, error) {
-        window.parent.postMessage({
-            type: 'iframe-error',
-            data: { message: msg, source: url, line: line, column: col, stack: error ? error.stack : null }
-        }, '*');
-        return false;
-    };
-    window.onunhandledrejection = function(event) {
-        window.parent.postMessage({
-            type: 'iframe-error',
-            data: { message: 'Unhandled Promise Rejection: ' + (event.reason ? event.reason.message || event.reason : 'Unknown'), stack: event.reason ? event.reason.stack : null }
-        }, '*');
-    };
-    ['log', 'info', 'warn', 'error'].forEach(function(method) {
-        var original = console[method];
-        console[method] = function() {
-            var args = Array.prototype.slice.call(arguments);
-            window.parent.postMessage({
-                type: 'iframe-console',
-                data: { method: method, args: args.map(function(arg) { try { return typeof arg === 'object' ? JSON.stringify(arg) : String(arg); } catch(e) { return String(arg); } }) }
-            }, '*');
-            original.apply(console, arguments);
+    var ready = false;
+    function setup() {
+        if (ready) return;
+        ready = true;
+        window.onerror = function(msg, url, line, col, error) {
+            window.parent.postMessage({ type: 'iframe-error', data: { message: String(msg), source: url, line: line, column: col, stack: error ? error.stack : null } }, '*');
         };
-    });
-    window.addEventListener('load', function() { window.parent.postMessage({ type: 'iframe-loaded' }, '*'); });
-    document.addEventListener('DOMContentLoaded', function() { window.parent.postMessage({ type: 'iframe-dom-ready' }, '*'); });
+        window.onunhandledrejection = function(event) {
+            var msg = event.reason ? (event.reason.message || String(event.reason)) : 'Unknown';
+            window.parent.postMessage({ type: 'iframe-error', data: { message: 'Promise Rejection: ' + msg, stack: event.reason ? event.reason.stack : null } }, '*');
+        };
+    }
+    if (document.readyState === 'complete') { setup(); } 
+    else { window.addEventListener('load', setup); }
+    window.parent.postMessage({ type: 'iframe-dom-ready' }, '*');
 })();`;
                 
                 const errorScript = scriptOpen + errorCode + scriptClose;
                 
-                // Insert error handler right after <head> or at the start
-                if (html.includes('<head>')) {
-                    return html.replace('<head>', '<head>' + errorScript);
-                } else if (html.includes('<html>')) {
-                    return html.replace('<html>', '<html><head>' + errorScript + '</head>');
+                // Insert BEFORE </body> to not interfere with React hydration
+                // This ensures React mounts first, then our error handler attaches
+                if (html.includes('</body>')) {
+                    return html.replace('</body>', errorScript + '</body>');
+                } else if (html.includes('</html>')) {
+                    return html.replace('</html>', errorScript + '</html>');
                 } else {
-                    return errorScript + html;
+                    return html + errorScript;
                 }
             }
             
@@ -1543,23 +1539,34 @@
                         setProgress(30);
                         
                         let processedHtml;
-                        if (state.processedHtmlCache.has(path)) {
-                            processedHtml = state.processedHtmlCache.get(path);
+                        const cacheKey = path + '_v2';
+                        if (state.processedHtmlCache.has(cacheKey)) {
+                            processedHtml = state.processedHtmlCache.get(cacheKey);
                         } else {
                             processedHtml = await processHtmlAssets(content, basePath);
-                            // Inject error handler
+                            // Inject error handler at the END of body (safer for React)
                             processedHtml = injectErrorHandler(processedHtml);
-                            state.processedHtmlCache.set(path, processedHtml);
+                            state.processedHtmlCache.set(cacheKey, processedHtml);
                         }
                         
                         setProgress(95);
+                        
+                        // Revoke old preview blob if exists
+                        if (state.currentPreviewBlob) {
+                            URL.revokeObjectURL(state.currentPreviewBlob);
+                        }
+                        
+                        // Create blob URL instead of srcdoc for better React compatibility
+                        const htmlBlob = new Blob([processedHtml], { type: 'text/html;charset=utf-8' });
+                        const htmlBlobUrl = URL.createObjectURL(htmlBlob);
+                        state.currentPreviewBlob = htmlBlobUrl;
                         
                         // Load into iframe with timeout
                         await new Promise((resolve, reject) => {
                             const timeout = setTimeout(() => {
                                 Logger.warn('Preview load timeout - content may still be loading');
                                 resolve();
-                            }, 10000);
+                            }, 15000);
                             
                             DOM.mainIframe.onload = () => {
                                 clearTimeout(timeout);
@@ -1572,7 +1579,8 @@
                                 reject(new Error('Failed to load preview'));
                             };
                             
-                            DOM.mainIframe.srcdoc = processedHtml;
+                            // Use src with blob URL instead of srcdoc
+                            DOM.mainIframe.src = htmlBlobUrl;
                         });
                         
                         setProgress(100);
