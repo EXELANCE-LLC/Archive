@@ -507,11 +507,15 @@
         .folder-content {
             padding-left: 12px;
             overflow: hidden;
-            transition: max-height 0.25s ease;
+            max-height: 10000px;
+            transition: max-height 0.3s ease-in-out, opacity 0.2s ease;
+            opacity: 1;
         }
         
         .folder-content.collapsed {
             max-height: 0 !important;
+            opacity: 0;
+            pointer-events: none;
         }
         
         .chevron {
@@ -1275,13 +1279,18 @@
             function buildFileTree(paths) {
                 const tree = {};
                 paths.forEach(path => {
-                    const parts = path.split('/');
+                    // Normalize path - remove leading slashes
+                    const normalizedPath = path.replace(/^\/+/, '');
+                    const parts = normalizedPath.split('/').filter(p => p.length > 0);
                     let current = tree;
+                    
                     parts.forEach((part, index) => {
                         if (index === parts.length - 1) {
+                            // It's a file
                             if (!current._files) current._files = [];
                             current._files.push({ name: part, path: path });
                         } else {
+                            // It's a directory
                             if (!current[part]) current[part] = {};
                             current = current[part];
                         }
@@ -1291,8 +1300,9 @@
             }
             
             function renderFileTree() {
-                const files = Object.keys(state.currentZip.files)
-                    .filter(p => !state.currentZip.files[p].dir)
+                const allPaths = Object.keys(state.currentZip.files);
+                const files = allPaths
+                    .filter(p => !state.currentZip.files[p].dir && p.trim() !== '')
                     .sort((a, b) => {
                         const aHtml = a.toLowerCase().endsWith('.html');
                         const bHtml = b.toLowerCase().endsWith('.html');
@@ -1302,6 +1312,12 @@
                     });
                 
                 DOM.fileTree.innerHTML = '';
+                
+                if (files.length === 0) {
+                    DOM.fileTree.innerHTML = '<div class="empty-state py-8"><p class="text-[13px] text-zinc-400">No files found in ZIP</p></div>';
+                    Logger.warn('No files found in ZIP archive');
+                    return;
+                }
                 
                 const countText = `${files.length} file${files.length !== 1 ? 's' : ''}`;
                 DOM.fileCountText.textContent = countText;
@@ -1313,8 +1329,11 @@
                 
                 const tree = buildFileTree(files);
                 
-                function renderNode(node, container) {
-                    if (node._files) {
+                Logger.info(`File tree structure: ${Object.keys(tree).filter(k => k !== '_files').length} root folders, ${(tree._files || []).length} root files`);
+                
+                function renderNode(node, container, depth = 0) {
+                    // Render files first
+                    if (node._files && node._files.length > 0) {
                         node._files.forEach(file => {
                             const ext = getExtension(file.path);
                             const item = document.createElement('div');
@@ -1331,9 +1350,14 @@
                         });
                     }
                     
-                    Object.keys(node).filter(k => k !== '_files').sort().forEach(folderName => {
+                    // Render folders
+                    const folders = Object.keys(node).filter(k => k !== '_files').sort();
+                    
+                    folders.forEach(folderName => {
                         const folder = document.createElement('div');
                         folder.className = 'folder-item';
+                        
+                        const itemCount = countItems(node[folderName]);
                         
                         const header = document.createElement('div');
                         header.className = 'folder-header';
@@ -1345,27 +1369,29 @@
                                 <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
                             </svg>
                             <span>${folderName}</span>
+                            <span class="text-[10px] text-zinc-400 ml-auto">${itemCount}</span>
                         `;
                         
                         const content = document.createElement('div');
                         content.className = 'folder-content';
                         
-                        const itemCount = countItems(node[folderName]);
+                        // First 2 levels are always expanded, deeper levels collapse if > 30 items
+                        const shouldCollapse = depth >= 2 && itemCount > 30;
                         
-                        header.onclick = () => {
+                        header.onclick = (e) => {
+                            e.stopPropagation();
                             const chevron = header.querySelector('.chevron');
                             const isCollapsed = content.classList.toggle('collapsed');
                             chevron.classList.toggle('collapsed', isCollapsed);
                         };
                         
-                        renderNode(node[folderName], content);
+                        // Recursively render children
+                        renderNode(node[folderName], content, depth + 1);
                         
-                        if (itemCount > 20) {
+                        if (shouldCollapse) {
                             content.classList.add('collapsed');
                             header.querySelector('.chevron').classList.add('collapsed');
                         }
-                        
-                        content.style.maxHeight = content.classList.contains('collapsed') ? '0' : `${content.scrollHeight + 1000}px`;
                         
                         folder.appendChild(header);
                         folder.appendChild(content);
