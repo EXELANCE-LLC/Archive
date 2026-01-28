@@ -1,5 +1,5 @@
-// Archive - Service Worker v2.2
-const CACHE_NAME = 'archive-v2.2';
+// Archive - Service Worker v2.3
+const CACHE_NAME = 'archive-v2.3';
 const OFFLINE_URL = '/';
 
 // Files to cache immediately on install
