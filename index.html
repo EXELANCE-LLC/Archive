@@ -54,9 +54,32 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-css.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-markup.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-css.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-clike.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-typescript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-jsx.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-tsx.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-java.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-c.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-cpp.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-csharp.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-rust.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-ruby.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-markup-templating.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-php.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-swift.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-kotlin.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-sql.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-yaml.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-markdown.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-scss.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-less.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     
@@ -348,6 +371,11 @@
             flex: 1;
             overflow: auto;
             min-width: 0;
+            direction: rtl; /* Scrollbar on left */
+        }
+        
+        .code-main > * {
+            direction: ltr; /* Reset direction for content */
         }
         
         .line-numbers {
@@ -355,7 +383,7 @@
             left: 0;
             flex-shrink: 0;
             padding: 12px 0;
-            background: #0a0a0a;
+            background: #111111;
             color: #52525b;
             font-family: 'JetBrains Mono', monospace;
             font-size: 10px;
@@ -366,7 +394,8 @@
             min-width: 44px;
             padding-right: 10px;
             padding-left: 10px;
-            z-index: 2;
+            z-index: 10;
+            box-shadow: 2px 0 8px rgba(0, 0, 0, 0.3);
         }
         
         .line-numbers div {
@@ -401,8 +430,7 @@
         }
         
         .code-minimap {
-            display: flex;
-            flex-direction: column;
+            display: block;
             width: 60px;
             flex-shrink: 0;
             background: #0f0f0f;
@@ -1722,10 +1750,18 @@
                         
                         if (content.length < 100000) {
                             const langMap = {
-                                'js': 'javascript', 'mjs': 'javascript', 'jsx': 'javascript',
-                                'ts': 'typescript', 'tsx': 'typescript',
-                                'css': 'css', 'json': 'javascript',
-                                'html': 'markup', 'htm': 'markup', 'svg': 'markup', 'xml': 'markup'
+                                'js': 'javascript', 'mjs': 'javascript', 'cjs': 'javascript',
+                                'jsx': 'jsx', 'ts': 'typescript', 'tsx': 'tsx',
+                                'css': 'css', 'scss': 'scss', 'sass': 'scss', 'less': 'less',
+                                'json': 'json', 'jsonc': 'json',
+                                'html': 'markup', 'htm': 'markup', 'svg': 'markup', 'xml': 'markup', 'xhtml': 'markup',
+                                'py': 'python', 'pyw': 'python', 'pyi': 'python',
+                                'java': 'java', 'kt': 'kotlin', 'kts': 'kotlin',
+                                'c': 'c', 'h': 'c', 'cpp': 'cpp', 'cc': 'cpp', 'cxx': 'cpp', 'hpp': 'cpp', 'hxx': 'cpp',
+                                'cs': 'csharp', 'go': 'go', 'rs': 'rust', 'rb': 'ruby',
+                                'php': 'php', 'swift': 'swift',
+                                'sql': 'sql', 'sh': 'bash', 'bash': 'bash', 'zsh': 'bash',
+                                'yml': 'yaml', 'yaml': 'yaml', 'md': 'markdown', 'mdx': 'markdown'
                             };
                             DOM.codeBox.className = `language-${langMap[ext] || 'markup'} text-[11px]`;
                             try {
