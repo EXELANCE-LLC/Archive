@@ -2141,11 +2141,61 @@
             // ERROR HANDLING FOR IFRAME
             // ============================================================
             
-            // No longer inject scripts into HTML - this breaks React hydration
-            // Instead, we attach error handlers after iframe loads via contentWindow
+            // Inject viewport-fixing CSS into iframe content for iOS Safari compatibility
+            // This ensures content properly extends to the edges and handles dynamic viewport height
+            function injectViewportCSS(html) {
+                // CSS that fixes viewport issues on iOS Safari
+                // Uses !important with lower specificity so sites can override if needed
+                const viewportCSS = `<style id="archive-viewport-fix">
+                    /* iOS Safari Viewport Fix - Injected by Archive */
+                    /* Sites can override these styles if they have their own safe area handling */
+                    :root {
+                        /* Use dynamic viewport height for iOS Safari */
+                        --archive-min-height: 100vh;
+                    }
+                    @supports (min-height: 100dvh) {
+                        :root {
+                            --archive-min-height: 100dvh;
+                        }
+                    }
+                    html:not(.archive-viewport-handled) {
+                        min-height: var(--archive-min-height);
+                    }
+                    body:not(.archive-viewport-handled) {
+                        min-height: var(--archive-min-height);
+                        margin: 0;
+                    }
+                </style>`;
+                
+                let result = html;
+                
+                // Only inject viewport meta tag if no existing viewport meta tag exists
+                const hasViewportMeta = /<meta[^>]*name=["']viewport["'][^>]*>/i.test(result);
+                if (!hasViewportMeta && result.includes('<head')) {
+                    const viewportMeta = '<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">';
+                    if (result.includes('<head>')) {
+                        result = result.replace('<head>', '<head>' + viewportMeta);
+                    } else if (/<head\s[^>]*>/.test(result)) {
+                        result = result.replace(/<head\s[^>]*>/, '$&' + viewportMeta);
+                    }
+                }
+                
+                // Inject CSS before </head> or at start of <body>
+                if (result.includes('</head>')) {
+                    result = result.replace('</head>', viewportCSS + '</head>');
+                } else if (result.includes('<body>')) {
+                    result = result.replace('<body>', '<body>' + viewportCSS);
+                } else if (result.includes('<body ')) {
+                    result = result.replace(/<body\s[^>]*>/, '$&' + viewportCSS);
+                }
+                // If no head/body tags, don't inject (likely not valid HTML)
+                
+                return result;
+            }
+            
             function injectErrorHandler(html) {
-                // Return HTML unchanged to preserve React hydration
-                return html;
+                // Inject viewport CSS to fix iOS Safari issues
+                return injectViewportCSS(html);
             }
             
             // Attach error handlers to iframe after it loads (same-origin blob URLs allow this)
@@ -2451,6 +2501,7 @@
                         // Try to attach error handlers again after delays
                         setTimeout(() => attachIframeErrorHandlers(), 500);
                         setTimeout(() => attachIframeErrorHandlers(), 2000);
+                        
                         
                     } else if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'ico', 'bmp'].includes(ext)) {
                         const blobUrl = await createBlobUrl(path);
