@@ -841,7 +841,7 @@
             overflow: visible;
         }
         
-        /* 3. SHADOW DOM CONTAINER - For noiframe mode */
+        /* 3. SHADOW DOM CONTAINER - For no-iframe mode */
         #shadowContainer {
             display: none;
             position: absolute;
@@ -1141,7 +1141,7 @@
                 <div id="pContainer" class="absolute inset-0 z-10">
                     <iframe id="mainIframe" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-popups-to-escape-sandbox allow-presentation allow-downloads"></iframe>
                     
-                    <!-- Shadow DOM Container (for noiframe mode) -->
+                    <!-- Shadow DOM Container (for no-iframe mode) -->
                     <div id="shadowContainer"></div>
                     
                     <!-- Loading Overlay -->
@@ -1240,7 +1240,7 @@
     </button>
     
     <!-- Fullscreen Exit Button -->
-    <button id="fullscreenExitBtn" class="fullscreen-exit-btn" title="Exit fullscreen">
+    <button id="fullscreenExitBtn" class="fullscreen-exit-btn" title="Exit fullscreen (Esc)" tabindex="0" aria-label="Exit fullscreen preview mode">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
             <path d="M8 3v3a2 2 0 0 1-2 2H3"/>
             <path d="M21 8h-3a2 2 0 0 1-2-2V3"/>
@@ -1639,7 +1639,15 @@
                 document.querySelectorAll('.preview-mode-option').forEach(opt => {
                     opt.classList.toggle('active', opt.dataset.mode === mode);
                 });
-                DOM.previewModeName.textContent = mode === 'iframe' ? 'iframe' : mode;
+                
+                // Proper mode name display with capitalization
+                const modeNames = {
+                    'iframe': 'iframe',
+                    'fullscreen': 'Fullscreen',
+                    'seamless': 'Seamless',
+                    'shadow': 'Shadow DOM'
+                };
+                DOM.previewModeName.textContent = modeNames[mode] || mode;
                 
                 // Apply new mode
                 switch (mode) {
@@ -1652,6 +1660,16 @@
                         Logger.info('Preview mode: Seamless iframe - extended safe areas');
                         break;
                     case 'shadow':
+                        // Security confirmation for Shadow DOM mode
+                        if (oldMode !== 'shadow' && !confirm('⚠️ Shadow DOM Mode\n\nThis mode allows ZIP content to access the main page. Only use with trusted content.\n\nContinue?')) {
+                            // User cancelled - revert to previous mode
+                            state.previewMode = oldMode || 'iframe';
+                            DOM.previewModeName.textContent = modeNames[state.previewMode] || state.previewMode;
+                            document.querySelectorAll('.preview-mode-option').forEach(opt => {
+                                opt.classList.toggle('active', opt.dataset.mode === state.previewMode);
+                            });
+                            return;
+                        }
                         document.body.classList.add('shadow-dom-active');
                         Logger.info('Preview mode: Shadow DOM - no iframe (less secure)');
                         // If we have content, reload it into shadow DOM
@@ -1668,18 +1686,30 @@
                         break;
                 }
                 
-                notify(`Preview mode: ${mode}`, 'info');
+                notify(`Preview mode: ${modeNames[mode] || mode}`, 'info');
             }
+            
+            // Recursion guard for loadContentIntoShadowDOM
+            let shadowDOMLoadingInProgress = false;
             
             function loadContentIntoShadowDOM() {
                 if (!state.currentFile) return;
+                
+                // Prevent infinite recursion
+                if (shadowDOMLoadingInProgress) {
+                    Logger.warn('Shadow DOM loading already in progress');
+                    return;
+                }
                 
                 const cacheKey = state.staticMode ? state.currentFile + '_static_v1' : state.currentFile + '_v4';
                 let html = state.processedHtmlCache.get(cacheKey);
                 
                 if (!html) {
-                    // Need to reload the file
-                    loadFile(state.currentFile);
+                    // Need to reload the file - set flag to prevent recursion
+                    shadowDOMLoadingInProgress = true;
+                    loadFile(state.currentFile).finally(() => {
+                        shadowDOMLoadingInProgress = false;
+                    });
                     return;
                 }
                 
@@ -1729,19 +1759,24 @@
                 state.shadowRoot.appendChild(viewportCSS);
                 
                 // Add warning banner for shadow DOM mode
+                // Warning banner height is 28px (padding 5px*2 + line-height ~18px)
                 const warning = document.createElement('div');
+                warning.className = 'shadow-dom-warning';
                 warning.style.cssText = 'position:fixed;top:0;left:0;right:0;background:linear-gradient(90deg,#f97316,#ea580c);color:#fff;padding:5px 12px;font-family:system-ui,sans-serif;font-size:11px;font-weight:500;text-align:center;z-index:999999;box-shadow:0 2px 6px rgba(0,0,0,0.12);';
-                warning.innerHTML = '⚠️ Shadow DOM Mode - ZIP JavaScript can access page (use with trusted content only)';
+                warning.textContent = '⚠️ Shadow DOM Mode - ZIP JavaScript can access page (use with trusted content only)';
                 state.shadowRoot.appendChild(warning);
                 
-                // Add spacer for warning
+                // Add spacer for warning (28px = banner height)
                 const spacer = document.createElement('div');
                 spacer.style.height = '28px';
                 wrapper.appendChild(spacer);
                 
-                // Move body content
+                // Move body content safely using DOM manipulation instead of innerHTML concatenation
                 if (doc.body) {
-                    wrapper.innerHTML += doc.body.innerHTML;
+                    // Clone all child nodes from parsed body
+                    Array.from(doc.body.childNodes).forEach(node => {
+                        wrapper.appendChild(node.cloneNode(true));
+                    });
                 }
                 
                 state.shadowRoot.appendChild(wrapper);
@@ -1754,9 +1789,16 @@
                             const newScript = document.createElement('script');
                             if (script.src) {
                                 newScript.src = script.src;
+                                newScript.onerror = (e) => {
+                                    Logger.error(`Shadow DOM external script error: ${script.src}`);
+                                };
                             } else {
                                 newScript.textContent = script.textContent;
                             }
+                            // Add error handler for runtime errors
+                            newScript.addEventListener('error', (e) => {
+                                Logger.error(`Shadow DOM script runtime error: ${e.message || 'Unknown error'}`);
+                            });
                             state.shadowRoot.appendChild(newScript);
                         } catch (e) {
                             Logger.error(`Shadow DOM script error: ${e.message}`);
@@ -2236,8 +2278,14 @@
                 } else {
                     document.getElementById('staticToggle').classList.add('hidden');
                     document.getElementById('staticToggle').classList.remove('flex');
-                    // Hide preview mode selector for non-HTML files
+                    // Hide preview mode selector and reset to iframe mode for non-HTML files
                     DOM.previewModeSelector.classList.add('hidden');
+                    // Reset preview mode to prevent visual artifacts
+                    if (state.previewMode !== 'iframe') {
+                        state.previewMode = 'iframe';
+                        document.body.classList.remove('fullscreen-preview-active', 'seamless-iframe-active', 'shadow-dom-active');
+                        DOM.shadowContainer.classList.remove('active');
+                    }
                 }
                 
                 try {
@@ -2607,8 +2655,8 @@
                         e.preventDefault();
                         toggleConsole();
                     }
-                    // Fullscreen toggle with F key
-                    if (e.key === 'f' && !e.metaKey && !e.ctrlKey && document.activeElement.tagName !== 'INPUT') {
+                    // Fullscreen toggle with Ctrl/Cmd+Shift+F (safer than just 'f')
+                    if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'f') {
                         e.preventDefault();
                         if (state.previewMode === 'fullscreen') {
                             setPreviewMode('iframe');
@@ -2639,9 +2687,15 @@
                     };
                 });
                 
-                // Fullscreen exit button
+                // Fullscreen exit button - support both click and keyboard
                 DOM.fullscreenExitBtn.onclick = () => {
                     setPreviewMode('iframe');
+                };
+                DOM.fullscreenExitBtn.onkeydown = (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setPreviewMode('iframe');
+                    }
                 };
                 
                 // Resize handler
