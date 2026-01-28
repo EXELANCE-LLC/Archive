@@ -61,7 +61,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     
     <!-- Lucide Icons CDN -->
-    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+    <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
     
     <script>
         tailwind.config = {
@@ -411,6 +411,7 @@
         }
         
         .minimap-content {
+            /* Scale: 0.12 = 12% -> Width needs to be 1/0.12 = 8.33x = 833% to compensate */
             transform: scaleX(0.12) scaleY(0.12);
             transform-origin: top left;
             width: 833%;
@@ -690,10 +691,10 @@
                 
                 <!-- Code Container -->
                 <div id="cContainer" class="absolute inset-0 bg-[#0a0a0a] hidden z-0">
-                    <div class="code-stats" id="codeStats">
-                        <span><i data-lucide="file-text" style="width:12px;height:12px"></i> <span id="lineCount">0</span> lines</span>
-                        <span><i data-lucide="type" style="width:12px;height:12px"></i> <span id="charCount">0</span> chars</span>
-                        <span><i data-lucide="file" style="width:12px;height:12px"></i> <span id="byteCount">0</span> KB</span>
+                    <div class="code-stats" id="codeStats" role="status" aria-label="Code statistics">
+                        <span aria-label="Line count"><i data-lucide="file-text" style="width:12px;height:12px" aria-hidden="true"></i> <span id="lineCount">0</span> lines</span>
+                        <span aria-label="Character count"><i data-lucide="type" style="width:12px;height:12px" aria-hidden="true"></i> <span id="charCount">0</span> chars</span>
+                        <span aria-label="File size in kilobytes"><i data-lucide="file" style="width:12px;height:12px" aria-hidden="true"></i> <span id="byteCount">0</span> KB</span>
                     </div>
                     <div class="code-wrapper">
                         <div class="code-main custom-scroll" id="codeMain">
@@ -901,6 +902,9 @@
                 isSidebarDragging: false
             };
             
+            // Constants
+            const MAX_MINIMAP_CONTENT_SIZE = 500000; // 500KB max for minimap content
+            
             // DOM Elements
             const DOM = {};
             
@@ -1035,14 +1039,15 @@
             }
             
             function getFileIcon(ext) {
+                // Icon mapping with appropriate Lucide icons and colors
                 const icons = {
                     'html': { color: '#e34c26', icon: 'file-code' },
                     'htm': { color: '#e34c26', icon: 'file-code' },
                     'css': { color: '#264de4', icon: 'palette' },
-                    'js': { color: '#f0db4f', icon: 'file-json' },
-                    'mjs': { color: '#f0db4f', icon: 'file-json' },
+                    'js': { color: '#f0db4f', icon: 'file-code' },
+                    'mjs': { color: '#f0db4f', icon: 'file-code' },
                     'jsx': { color: '#61dafb', icon: 'atom' },
-                    'ts': { color: '#3178c6', icon: 'file-type' },
+                    'ts': { color: '#3178c6', icon: 'file-code' },
                     'tsx': { color: '#3178c6', icon: 'atom' },
                     'json': { color: '#6b7280', icon: 'braces' },
                     'svg': { color: '#ffb13b', icon: 'image' },
@@ -1069,7 +1074,8 @@
                 };
                 
                 const iconData = icons[ext] || { color: '#a1a1aa', icon: 'file' };
-                return `<span class="file-icon-badge flex-shrink-0 w-6 h-6 rounded-md flex items-center justify-center" style="background: ${iconData.color}15; color: ${iconData.color}"><i data-lucide="${iconData.icon}" style="width:14px;height:14px"></i></span>`;
+                const extLabel = ext ? ext.toUpperCase() : 'File';
+                return `<span class="file-icon-badge flex-shrink-0 w-6 h-6 rounded-md flex items-center justify-center" style="background: ${iconData.color}15; color: ${iconData.color}" aria-label="${extLabel} file"><i data-lucide="${iconData.icon}" style="width:14px;height:14px" aria-hidden="true"></i></span>`;
             }
             
             // ============================================================
@@ -1151,6 +1157,9 @@
             // CODE MINIMAP
             // ============================================================
             
+            // Track if minimap scroll is initialized
+            let minimapInitialized = false;
+            
             function initMinimapScroll() {
                 const codeMain = document.getElementById('codeMain');
                 const minimap = document.getElementById('codeMinimap');
@@ -1159,8 +1168,18 @@
                 
                 if (!codeMain || !minimap || !viewport || !minimapContent) return;
                 
+                // Check if content fits without scrolling
+                const canScroll = codeMain.scrollHeight > codeMain.clientHeight;
+                
                 const updateViewport = () => {
-                    const scrollRatio = codeMain.scrollTop / (codeMain.scrollHeight - codeMain.clientHeight || 1);
+                    if (!canScroll) {
+                        viewport.style.height = `${minimap.clientHeight}px`;
+                        viewport.style.top = '0px';
+                        return;
+                    }
+                    
+                    const scrollableHeight = codeMain.scrollHeight - codeMain.clientHeight;
+                    const scrollRatio = scrollableHeight > 0 ? codeMain.scrollTop / scrollableHeight : 0;
                     const minimapHeight = minimap.clientHeight;
                     
                     // Calculate viewport size based on visible ratio
@@ -1175,23 +1194,23 @@
                     viewport.style.top = `${viewportTop}px`;
                 };
                 
-                // Remove previous listeners to avoid duplicates
-                const newCodeMain = codeMain.cloneNode(true);
-                codeMain.parentNode.replaceChild(newCodeMain, codeMain);
-                
-                // Re-get the element after replacing
-                const freshCodeMain = document.getElementById('codeMain');
-                
-                // Update on scroll
-                freshCodeMain.addEventListener('scroll', updateViewport, { passive: true });
-                
-                // Click on minimap to scroll
-                minimap.onclick = (e) => {
-                    const rect = minimap.getBoundingClientRect();
-                    const clickRatio = (e.clientY - rect.top) / rect.height;
-                    const scrollTarget = clickRatio * (freshCodeMain.scrollHeight - freshCodeMain.clientHeight);
-                    freshCodeMain.scrollTo({ top: scrollTarget, behavior: 'smooth' });
-                };
+                // Only add listeners once
+                if (!minimapInitialized) {
+                    codeMain.addEventListener('scroll', updateViewport, { passive: true });
+                    
+                    // Click on minimap to scroll
+                    minimap.addEventListener('click', (e) => {
+                        const rect = minimap.getBoundingClientRect();
+                        const clickRatio = (e.clientY - rect.top) / rect.height;
+                        const scrollableHeight = codeMain.scrollHeight - codeMain.clientHeight;
+                        if (scrollableHeight > 0) {
+                            const scrollTarget = clickRatio * scrollableHeight;
+                            codeMain.scrollTo({ top: scrollTarget, behavior: 'smooth' });
+                        }
+                    });
+                    
+                    minimapInitialized = true;
+                }
                 
                 // Initial update
                 updateViewport();
@@ -1705,10 +1724,10 @@
                         
                         // Update minimap
                         const minimapContent = document.getElementById('minimapContent');
-                        if (minimapContent && content.length < 500000) {
+                        if (minimapContent && content.length < MAX_MINIMAP_CONTENT_SIZE) {
                             minimapContent.textContent = content;
                         } else if (minimapContent) {
-                            minimapContent.textContent = content.slice(0, 500000) + '\n... (truncated)';
+                            minimapContent.textContent = content.slice(0, MAX_MINIMAP_CONTENT_SIZE) + '\n... (truncated)';
                         }
                         
                         // Initialize minimap scrolling
