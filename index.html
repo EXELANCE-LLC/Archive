@@ -371,11 +371,6 @@
             flex: 1;
             overflow: auto;
             min-width: 0;
-            direction: rtl; /* Scrollbar on left */
-        }
-        
-        .code-main > * {
-            direction: ltr; /* Reset direction for content */
         }
         
         .line-numbers {
@@ -705,8 +700,21 @@
                             <circle cx="7" cy="6" r="1" fill="currentColor"/>
                             <circle cx="10" cy="6" r="1" fill="currentColor"/>
                         </svg>
-                        <p class="text-[15px] text-zinc-400 font-medium">No preview available</p>
-                        <p class="text-[13px] text-zinc-300 mt-1">Select an HTML file to preview</p>
+                        <h2 class="text-[18px] text-zinc-500 font-semibold mb-2">Welcome to Archive</h2>
+                        <p class="text-[14px] text-zinc-400 font-medium max-w-md">ZIP Preview Studio</p>
+                        <p class="text-[13px] text-zinc-300 mt-3 max-w-md leading-relaxed">
+                            Preview and explore ZIP files directly in your browser. 
+                            Perfect for viewing React, Next.js, and static site builds without any server setup.
+                        </p>
+                        <p class="text-[12px] text-zinc-300 mt-2 max-w-md">
+                            100% client-side • No upload required • Fast & Secure
+                        </p>
+                        <p class="text-[13px] text-zinc-400 mt-4">
+                            Drop a ZIP file on the sidebar or click <strong>Deploy</strong> to get started.
+                        </p>
+                        <div id="bmcContainer" class="mt-8">
+                            <script type="text/javascript" src="https://cdnjs.buymeacoffee.com/1.0.0/button.prod.min.js" data-name="bmc-button" data-slug="bigollc" data-color="#FFDD00" data-emoji="☕" data-font="Cookie" data-text="Buy me a coffee" data-outline-color="#000000" data-font-color="#000000" data-coffee-color="#ffffff"></script>
+                        </div>
                     </div>
                 </div>
                 
