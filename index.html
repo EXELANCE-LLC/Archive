@@ -146,6 +146,8 @@
             padding: 0;
             height: 100%;
             overflow: hidden;
+            /* No background - content shows through to browser nav */
+            background: transparent;
         }
         
         html {
@@ -161,7 +163,6 @@
             font-family: 'Inter', system-ui, sans-serif;
             display: flex;
             flex-direction: column;
-            background: #fafafa;
             color: #09090b;
             /* Use modern viewport height */
             height: 100vh;
@@ -307,9 +308,16 @@
             background: transparent !important;
         }
         
-        /* Preview container fills entire area */
+        /* Preview container extends behind browser nav bar */
         #pContainer {
             background: transparent;
+            /* Extend below safe area so content shows behind nav */
+            bottom: calc(-1 * var(--sab, 0px)) !important;
+        }
+        
+        /* Code container also extends behind nav bar */
+        #cContainer {
+            bottom: calc(-1 * var(--sab, 0px)) !important;
         }
         
         /* Custom Scrollbar */
