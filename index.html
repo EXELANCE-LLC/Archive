@@ -82,6 +82,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-less.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     
     <!-- Lucide Icons CDN -->
     <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
@@ -500,6 +501,39 @@
             border-radius: 4px;
             font-size: 11px;
             font-family: 'JetBrains Mono', monospace;
+        }
+        
+        /* Support Message */
+        .support-message {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            font-size: 12px;
+            color: #71717a;
+            font-weight: 400;
+            max-width: 340px;
+            line-height: 1.5;
+        }
+        
+        .support-message span {
+            opacity: 0.9;
+        }
+        
+        .pulse-heart {
+            color: #E90606;
+            font-size: 14px;
+            animation: pound 0.35s infinite alternate;
+            -webkit-animation: pound 0.35s infinite alternate;
+            flex-shrink: 0;
+        }
+        
+        @-webkit-keyframes pound {
+            to { transform: scale(1.2); }
+        }
+        
+        @keyframes pound {
+            to { transform: scale(1.2); }
         }
         
         /* File Type Badges */
@@ -1002,10 +1036,11 @@
                     
                     <!-- Empty State -->
                     <div id="previewEmpty" class="empty-state">
-                        <div id="bmcContainer" class="mb-8">
-                            <a href="https://www.buymeacoffee.com/bigollc" target="_blank" rel="noopener noreferrer" aria-label="Support us on Buy Me a Coffee">
+                        <div id="bmcContainer" class="mb-6 flex flex-col items-center">
+                            <a href="https://www.buymeacoffee.com/bigollc" target="_blank" rel="noopener noreferrer" aria-label="Support us on Buy Me a Coffee" class="mb-2">
                                 <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" class="h-8 w-auto opacity-80 hover:opacity-100 transition-opacity">
                             </a>
+                            <p class="support-message">Backed by you, built for everyone <i class="fa-solid fa-heart pulse-heart"></i></p>
                         </div>
                         
                         <!-- Hero Section -->
