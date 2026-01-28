@@ -149,7 +149,6 @@
         html {
             scroll-behavior: smooth;
             height: 100%;
-            height: 100dvh;
             background: #ffffff;
             overscroll-behavior: none;
             /* CRITICAL: iOS Safari'nin html'e eklediği padding'i sıfırla */
@@ -164,8 +163,8 @@
             flex-direction: column;
             color: #09090b;
             background: #ffffff;
-            min-height: 100dvh;
-            height: 100dvh;
+            min-height: 100%;
+            height: 100%;
             width: 100vw;
             overflow: hidden;
             overscroll-behavior: none;
@@ -1551,7 +1550,7 @@
                 if (!height) return;
                 if (Math.abs(height - lastAppHeight) < 1) return;
                 lastAppHeight = height;
-                // No longer strictly needed with 100dvh, but kept for fallback
+                // Optional CSS variable for viewport height - not used with percentage-based heights, but kept for potential future use
                 document.documentElement.style.setProperty('--app-height', `${height}px`);
             }
             
