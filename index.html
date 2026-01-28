@@ -39,12 +39,14 @@
     <meta name="twitter:description" content="Preview ZIP files directly in your browser. View HTML, React, Next.js sites and more. Fast, secure, 100% client-side.">
     <meta name="twitter:image" content="https://archive.webusta.org/logo.jpeg">
     
-    <!-- Favicon -->
-    <link rel="icon" type="image/jpeg" href="logo.jpeg">
-    <link rel="icon" type="image/png" sizes="32x32" href="logo.jpeg">
-    <link rel="icon" type="image/png" sizes="16x16" href="logo.jpeg">
+    <!-- Favicon - Light Mode -->
+    <link rel="icon" type="image/jpeg" href="logo.jpeg" media="(prefers-color-scheme: light)">
+    <link rel="icon" type="image/png" href="logo-dark.png" media="(prefers-color-scheme: dark)">
     <link rel="apple-touch-icon" sizes="180x180" href="logo.jpeg">
     <link rel="shortcut icon" href="logo.jpeg">
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
     
     <!-- Canonical -->
     <link rel="canonical" href="https://archive.webusta.org/">
@@ -123,6 +125,19 @@
         * {
             -webkit-tap-highlight-color: transparent;
             touch-action: manipulation;
+        }
+        
+        /* Logo icon with matching border radius */
+        .logo-icon {
+            border-radius: 22%;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        /* Dark mode support */
+        @media (prefers-color-scheme: dark) {
+            .logo-icon {
+                box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+            }
         }
         
         html {
@@ -695,8 +710,11 @@
                 </svg>
             </button>
             <div class="flex items-center gap-2.5">
-                <img src="logo.jpeg" alt="Archive" class="w-8 h-8 rounded-xl object-cover">
-                <span class="text-[15px] font-bold tracking-tight hidden sm:inline text-rose-500">Archive</span>
+                <picture>
+                    <source srcset="logo-dark.png" media="(prefers-color-scheme: dark)">
+                    <img src="logo.jpeg" alt="Archive" class="w-8 h-8 object-cover logo-icon">
+                </picture>
+                <span class="text-[15px] font-bold tracking-tight hidden sm:inline text-rose-500 dark:text-rose-400">Archive</span>
             </div>
         </div>
         
@@ -2123,6 +2141,34 @@
             }
             
             window.addEventListener('beforeunload', cleanup);
+            
+            // ============================================================
+            // SERVICE WORKER REGISTRATION (PWA)
+            // ============================================================
+            
+            if ('serviceWorker' in navigator) {
+                window.addEventListener('load', () => {
+                    navigator.serviceWorker.register('/sw.js')
+                        .then((registration) => {
+                            Logger.info('PWA: Service Worker registered');
+                            
+                            // Check for updates
+                            registration.addEventListener('updatefound', () => {
+                                const newWorker = registration.installing;
+                                newWorker.addEventListener('statechange', () => {
+                                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                        // New version available
+                                        Logger.info('PWA: New version available');
+                                        notify('New version available! Refresh to update.', 'info');
+                                    }
+                                });
+                            });
+                        })
+                        .catch((error) => {
+                            Logger.warn('PWA: Service Worker registration failed: ' + error.message);
+                        });
+                });
+            }
             
         })();
     </script>

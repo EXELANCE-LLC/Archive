@@ -1,0 +1,53 @@
+{
+  "name": "Archive - ZIP Preview Studio",
+  "short_name": "Archive",
+  "description": "Preview ZIP files directly in your browser. View HTML, React, Next.js sites and more.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#f43f5e",
+  "orientation": "any",
+  "scope": "/",
+  "lang": "en",
+  "categories": ["developer", "utilities", "productivity"],
+  "icons": [
+    {
+      "src": "logo.jpeg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any"
+    },
+    {
+      "src": "logo.jpeg",
+      "sizes": "192x192",
+      "type": "image/jpeg",
+      "purpose": "any"
+    },
+    {
+      "src": "logo-dark.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "logo.jpeg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "form_factor": "wide",
+      "label": "Archive ZIP Preview"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Open Archive",
+      "short_name": "Open",
+      "description": "Open ZIP Preview Studio",
+      "url": "/",
+      "icons": [{ "src": "logo.jpeg", "sizes": "192x192" }]
+    }
+  ],
+  "related_applications": [],
+  "prefer_related_applications": false
+}
