@@ -145,51 +145,47 @@
         
         /* ===== iOS SAFE AREA FIX - BAŞLANGIÇ ===== */
         
+        /* 0. Root CSS Variables - Safe Area değerlerini aktar */
+        :root {
+            --sat: env(safe-area-inset-top, 0px);
+            --sar: env(safe-area-inset-right, 0px);
+            --sab: env(safe-area-inset-bottom, 0px);
+            --sal: env(safe-area-inset-left, 0px);
+            --app-height: 100dvh;
+            --real-height: 100dvh;
+        }
+        
         /* 1. HTML temel ayarları */
         html {
             scroll-behavior: smooth;
             height: 100%;
             height: 100dvh;
+            height: var(--app-height, 100dvh);
             background: #ffffff;
             overscroll-behavior: none;
-            /* CRITICAL: iOS Safari'nin html'e eklediği padding'i sıfırla */
             padding: 0 !important;
             margin: 0 !important;
         }
 
-        /* 2. Body - Agresif reset */
+        /* 2. Body - iOS Safari optimized */
         body {
             font-family: 'Inter', system-ui, sans-serif;
             display: flex;
             flex-direction: column;
             color: #09090b;
             background: #ffffff;
+            /* Dynamic height with fallback */
             min-height: 100dvh;
+            min-height: var(--app-height, 100dvh);
             height: 100dvh;
+            height: var(--app-height, 100dvh);
             width: 100vw;
             overflow: hidden;
             overscroll-behavior: none;
             -webkit-overflow-scrolling: touch;
-            
-            /* TÜM PADDING'LERİ SIFIRLA - env() kullanma! */
+            /* Reset all spacing */
             padding: 0 !important;
-            padding-top: 0 !important;
-            padding-bottom: 0 !important;
-            padding-left: 0 !important;
-            padding-right: 0 !important;
-            
-            /* TÜM MARGIN'LERİ SIFIRLA */
             margin: 0 !important;
-            margin-top: 0 !important;
-            margin-bottom: 0 !important;
-            margin-left: 0 !important;
-            margin-right: 0 !important;
-            
-            /* iOS Safari specific fix */
-            -webkit-padding-start: 0 !important;
-            -webkit-padding-end: 0 !important;
-            
-            /* Box sizing */
             box-sizing: border-box;
         }
 
@@ -239,8 +235,9 @@
                 transform: translateY(100%);
                 transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
                 box-shadow: none;
-                /* Bottom safe area için padding */
-                padding-bottom: env(safe-area-inset-bottom, 0px);
+                /* Bottom safe area için padding - içerik home indicator'a denk gelmesin */
+                padding-bottom: max(var(--sab, env(safe-area-inset-bottom, 0px)), 20px);
+                box-sizing: border-box;
             }
             
             #sidebar.active {
@@ -342,37 +339,39 @@
             margin: 0 !important;
         }
         
-        /* 6. Preview Container - En önemli kısım */
+        /* 6. Preview Container - Tam edge-to-edge */
         #pContainer {
             position: absolute;
             top: 0;
             left: 0;
             right: 0;
-            /* BOTTOM'U SIFIR YAP - safe area yok! */
+            /* BOTTOM: 0 - İçerik ekranın en altına kadar uzansın */
             bottom: 0 !important;
             display: flex;
             flex-direction: column;
             background: #ffffff;
             z-index: 10;
-            /* Padding yok */
             padding: 0 !important;
             margin: 0 !important;
         }
         
-        /* 7. iFrame - Tamamen edge-to-edge */
+        /* 7. iFrame - Tam ekran kaplasın */
         #pContainer iframe {
             flex: 1;
-            width: 100%;
-            height: 100%;
-            border: none;
+            width: 100% !important;
+            height: 100% !important;
+            border: none !important;
             display: block;
-            /* iOS iframe fix */
-            min-height: 100%;
+            background: #ffffff;
         }
         
+        /* Code Container - Tam edge-to-edge */
         #cContainer {
             position: absolute;
-            inset: 0;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0 !important;
         }
         
         .custom-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -1541,29 +1540,43 @@
                 ids.forEach(id => DOM[id] = document.getElementById(id));
             }
             
-            // ============================================================
-            // VIEWPORT HEIGHT SYNC (iOS Safari)
-            // ============================================================
-            
-            let lastAppHeight = 0;
-            function syncAppHeight() {
-                const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
-                if (!height) return;
-                if (Math.abs(height - lastAppHeight) < 1) return;
-                lastAppHeight = height;
-                // No longer strictly needed with 100dvh, but kept for fallback
-                document.documentElement.style.setProperty('--app-height', `${height}px`);
-            }
-            
-            function initViewportHeight() {
-                syncAppHeight();
-                window.addEventListener('resize', syncAppHeight, { passive: true });
-                window.addEventListener('orientationchange', syncAppHeight, { passive: true });
-                if (window.visualViewport) {
-                    window.visualViewport.addEventListener('resize', syncAppHeight, { passive: true });
-                    window.visualViewport.addEventListener('scroll', syncAppHeight, { passive: true });
-                }
-            }
+  // ============================================================
+  // VIEWPORT HEIGHT SYNC (iOS Safari) - Enhanced
+  // ============================================================
+  
+  let lastAppHeight = 0;
+  let lastSafeBottom = 0;
+  
+  function syncAppHeight() {
+    const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+    
+    // Safe area bottom değerini hesapla
+    const computedStyle = getComputedStyle(document.documentElement);
+    const safeBottom = parseInt(computedStyle.getPropertyValue('--sab') || '0') || 0;
+    
+    if (!height) return;
+    if (Math.abs(height - lastAppHeight) < 1 && safeBottom === lastSafeBottom) return;
+    
+    lastAppHeight = height;
+    lastSafeBottom = safeBottom;
+    
+  // CSS değişkenlerini güncelle
+  document.documentElement.style.setProperty('--app-height', `${height}px`);
+  document.documentElement.style.setProperty('--real-height', `${height + safeBottom}px`);
+  }
+  
+  function initViewportHeight() {
+    syncAppHeight();
+    window.addEventListener('resize', syncAppHeight, { passive: true });
+    window.addEventListener('orientationchange', () => {
+      // Orientation change'de biraz bekle
+      setTimeout(syncAppHeight, 100);
+    }, { passive: true });
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', syncAppHeight, { passive: true });
+      window.visualViewport.addEventListener('scroll', syncAppHeight, { passive: true });
+    }
+  }
             
             // ============================================================
             // UTILITIES
