@@ -143,21 +143,17 @@
             }
         }
         
-        /* ===== iOS SAFE AREA FIX - BAŞLANGIÇ ===== */
-        
-        /* 1. HTML temel ayarları */
+        /* 1. HTML and Body - Allow content to extend into safe area */
         html {
             scroll-behavior: smooth;
             height: 100%;
             height: 100dvh;
             background: #ffffff;
             overscroll-behavior: none;
-            /* CRITICAL: iOS Safari'nin html'e eklediği padding'i sıfırla */
             padding: 0 !important;
             margin: 0 !important;
         }
 
-        /* 2. Body - Agresif reset */
         body {
             font-family: 'Inter', system-ui, sans-serif;
             display: flex;
@@ -171,30 +167,15 @@
             overscroll-behavior: none;
             -webkit-overflow-scrolling: touch;
             
-            /* TÜM PADDING'LERİ SIFIRLA - env() kullanma! */
+            /* NO padding - we want content to extend into safe area */
             padding: 0 !important;
-            padding-top: 0 !important;
-            padding-bottom: 0 !important;
-            padding-left: 0 !important;
-            padding-right: 0 !important;
-            
-            /* TÜM MARGIN'LERİ SIFIRLA */
             margin: 0 !important;
-            margin-top: 0 !important;
-            margin-bottom: 0 !important;
-            margin-left: 0 !important;
-            margin-right: 0 !important;
             
-            /* iOS Safari specific fix */
-            -webkit-padding-start: 0 !important;
-            -webkit-padding-end: 0 !important;
-            
-            /* Box sizing */
             box-sizing: border-box;
         }
 
         
-        /* 4. Ana container - Tüm ekranı kaplasın */
+        /* 2. Main app container - extend into safe area */
         .app-main {
             display: flex;
             flex: 1;
@@ -204,7 +185,6 @@
             min-height: 0;
             height: 100%;
             width: 100%;
-            /* Safe area yok - tamamen edge-to-edge */
             padding: 0 !important;
             margin: 0 !important;
         }
@@ -221,25 +201,26 @@
             contain: layout style paint;
         }
         
-        /* 11. Mobile Sidebar - Safe area kullan */
+        /* 5. Mobile Sidebar - Properly positioned WITH safe area spacing */
         @media (max-width: 768px) {
             #sidebar {
                 position: fixed;
                 left: 0;
                 right: 0;
+                /* Start from the actual bottom (including safe area) */
                 bottom: 0;
                 top: auto;
                 width: 100%;
                 max-width: 100%;
-                height: 75dvh;
-                max-height: 75dvh;
+                height: calc(75dvh + env(safe-area-inset-bottom, 0px));
+                max-height: calc(75dvh + env(safe-area-inset-bottom, 0px));
                 border-right: none;
                 border-top: 1px solid #e4e4e7;
                 border-radius: 20px 20px 0 0;
                 transform: translateY(100%);
                 transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
                 box-shadow: none;
-                /* Bottom safe area için padding */
+                /* Add padding at bottom for safe area - content stops here */
                 padding-bottom: env(safe-area-inset-bottom, 0px);
             }
             
@@ -342,31 +323,30 @@
             margin: 0 !important;
         }
         
-        /* 6. Preview Container - En önemli kısım */
+        /* 3. Preview Container - THIS IS THE KEY FIX */
         #pContainer {
             position: absolute;
             top: 0;
             left: 0;
             right: 0;
-            /* BOTTOM'U SIFIR YAP - safe area yok! */
+            /* Extend to the very bottom - INTO the safe area */
             bottom: 0 !important;
             display: flex;
             flex-direction: column;
             background: #ffffff;
             z-index: 10;
-            /* Padding yok */
             padding: 0 !important;
             margin: 0 !important;
         }
         
-        /* 7. iFrame - Tamamen edge-to-edge */
+        /* 4. iFrame - Extend fully, including into safe area */
         #pContainer iframe {
             flex: 1;
             width: 100%;
             height: 100%;
             border: none;
             display: block;
-            /* iOS iframe fix */
+            /* This is critical - allow iframe to extend into safe area */
             min-height: 100%;
         }
         
@@ -400,7 +380,7 @@
             transition: width 0.3s ease; z-index: 100; border-radius: 0 2px 2px 0;
         }
         
-        /* 10. Toast - Safe area'ya göre pozisyon */
+        /* 8. Toast - Position above safe area */
         #toast {
             position: fixed; 
             bottom: calc(20px + env(safe-area-inset-bottom, 0px)); 
@@ -428,6 +408,7 @@
         #toast.success { background: #059669; }
         #toast.warning { background: #d97706; }
         
+        /* 9. Empty State - scrollable content with safe area padding at bottom */
         .empty-state {
             display: flex; 
             flex-direction: column; 
@@ -436,7 +417,7 @@
             height: 100%; 
             color: #a1a1aa; 
             padding: 60px 24px;
-            /* Bottom padding için safe area ekle - empty state scrollable */
+            /* Add safe area padding only at the bottom for scroll area */
             padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px));
             text-align: center;
             overflow-y: auto;
@@ -842,7 +823,7 @@
         .chevron { transition: transform 0.2s ease; }
         .chevron.collapsed { transform: rotate(-90deg); }
         
-        /* 8. Console Panel - Sadece burada bottom safe area kullan */
+        /* 6. Console Panel - Only add safe area when OPEN */
         #consolePanel {
             position: fixed; 
             bottom: 0; 
@@ -857,15 +838,21 @@
             display: flex; 
             flex-direction: column; 
             overflow: hidden;
+            /* No padding when closed */
+            padding-bottom: 0;
         }
+
         #consolePanel.open { 
             height: 250px;
-            /* Sadece console açıkken bottom padding */
+            /* Add safe area padding ONLY when open */
             padding-bottom: env(safe-area-inset-bottom, 0px);
         }
+
         @media (max-width: 768px) { 
             #consolePanel.open { 
                 height: 40dvh;
+                /* Maintain safe area padding on mobile */
+                padding-bottom: env(safe-area-inset-bottom, 0px);
             } 
         }
         
@@ -888,10 +875,10 @@
             border-radius: 9px; display: flex; align-items: center; justify-content: center; padding: 0 5px;
         }
         
-        /* 9. FAB Button - Safe area'ya göre pozisyon */
+        /* 7. FAB Button - Position above safe area */
         .fab {
             position: fixed; 
-            /* Safe area'yı sadece bottom'da kullan */
+            /* Position ABOVE the safe area so it's tappable */
             bottom: calc(16px + env(safe-area-inset-bottom, 0px)); 
             right: 16px; 
             width: 52px; 
