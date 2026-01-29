@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="en" class="antialiased">
+<head>
+    <meta charset="UTF-8">
+    <!-- CRITICAL: viewport-fit=cover for Edge-to-Edge on iOS/Android -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    
+    <title>Archive - Modern ZIP Preview Studio</title>
+    
+    <!-- SEO & Meta -->
+    <meta name="title" content="Archive - ZIP Preview Studio">
+    <meta name="description" content="Next-gen ZIP file viewer. Preview React, HTML, code & images instantly. 100% Client-side.">
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#09090b" media="(prefers-color-scheme: dark)">
+    
+    <!-- iOS PWA Capable -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Archive">
+
+    <!-- Dependencies -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    
+    <!-- Prism for Code Highlighting -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-markup.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-css.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-typescript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-jsx.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-tsx.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
+    
+    <!-- Icons -->
+    <script src="https://unpkg.com/lucide@0.344.0/dist/umd/lucide.min.js"></script>
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+
+    <script>
+        tailwind.config = {
+            darkMode: 'media',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        border: "hsl(var(--border))",
+                        background: "hsl(var(--background))",
+                        foreground: "hsl(var(--foreground))",
+                    },
+                    height: {
+                        'screen-dvh': '100dvh', // Key for iOS Safari
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        :root {
+            --background: 0 0% 100%;
+            --foreground: 240 10% 3.9%;
+            --border: 240 5.9% 90%;
+            --safe-top: env(safe-area-inset-top, 0px);
+            --safe-bottom: env(safe-area-inset-bottom, 0px);
+            --safe-left: env(safe-area-inset-left, 0px);
+            --safe-right: env(safe-area-inset-right, 0px);
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --background: 240 10% 3.9%;
+                --foreground: 0 0% 98%;
+                --border: 240 3.7% 15.9%;
+            }
+        }
+
+        /* HARD RESET FOR IOS OVERSCROLL */
+        html, body {
+            height: 100dvh;
+            width: 100%;
+            overflow: hidden; /* Prevent body scroll */
+            overscroll-behavior: none; /* No bounce */
+            -webkit-user-select: none;
+            user-select: none;
+            background-color: hsl(var(--background));
+            color: hsl(var(--foreground));
+        }
+
+        /* Specific Scroll Areas */
+        .scroll-y-auto {
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior-y: contain;
+        }
+
+        /* App Layout Grid */
+        #app-root {
+            display: grid;
+            grid-template-rows: auto 1fr; /* Header + Main */
+            height: 100dvh;
+            width: 100%;
+            position: fixed; /* Prevent iOS URL bar shift */
+            top: 0;
+            left: 0;
+            padding-top: var(--safe-top);
+            padding-bottom: var(--safe-bottom); /* Key for Home Indicator */
+            padding-left: var(--safe-left);
+            padding-right: var(--safe-right);
+            background-color: hsl(var(--background));
+        }
+
+        /* Syntax Highlighting Tweaks */
+        pre[class*="language-"] {
+            margin: 0 !important;
+            border-radius: 0 !important;
+            height: 100%;
+            background: #09090b !important;
+        }
+
+        /* Loaders */
+        .spinner {
+            border: 2px solid rgba(255,255,255,0.1);
+            border-left-color: currentColor;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* File Tree Animation */
+        .folder-content {
+            display: grid;
+            grid-template-rows: 0fr;
+            transition: grid-template-rows 0.2s ease-out;
+        }
+        .folder-content.open {
+            grid-template-rows: 1fr;
+        }
+        .folder-inner {
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Drag Drop Overlay -->
+    <div id="drop-zone" class="fixed inset-0 z-[100] bg-blue-500/10 backdrop-blur-sm hidden flex-col items-center justify-center border-4 border-blue-500 border-dashed m-4 rounded-3xl pointer-events-none">
+        <i data-lucide="download" class="w-16 h-16 text-blue-500 mb-4 animate-bounce"></i>
+        <p class="text-2xl font-bold text-blue-500">Drop ZIP here</p>
+    </div>
+
+    <!-- Main App Structure -->
+    <div id="app-root">
+        
+        <!-- Header: Fixed height, border bottom -->
+        <header class="h-14 flex items-center justify-between px-4 border-b border-zinc-200 dark:border-zinc-800 shrink-0 bg-white dark:bg-zinc-950 z-20">
+            <div class="flex items-center gap-3">
+                <button id="menu-btn" class="md:hidden p-2 -ml-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 active:scale-95 transition-transform">
+                    <i data-lucide="menu" class="w-5 h-5"></i>
+                </button>
+                <div class="flex items-center gap-2 font-bold text-lg tracking-tight">
+                    <div class="w-8 h-8 bg-black dark:bg-white text-white dark:text-black rounded-lg flex items-center justify-center">
+                        <i data-lucide="archive" class="w-4 h-4"></i>
+                    </div>
+                    <span class="hidden sm:block">Archive</span>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2">
+                <!-- Static Toggle (Hidden initially) -->
+                <div id="static-toggle-container" class="hidden items-center gap-2 mr-2 bg-zinc-100 dark:bg-zinc-900 px-2 py-1 rounded-md">
+                    <span class="text-[10px] font-semibold uppercase text-zinc-500">Static</span>
+                    <button id="static-toggle" class="w-8 h-4 bg-zinc-300 dark:bg-zinc-700 rounded-full relative transition-colors" aria-pressed="false">
+                        <div class="w-4 h-4 bg-white rounded-full shadow-sm absolute top-0 left-0 transition-transform scale-90"></div>
+                    </button>
+                </div>
+
+                <input type="file" id="zip-input" class="hidden" accept=".zip,.rar,.7z">
+                <label for="zip-input" class="cursor-pointer bg-black hover:bg-zinc-800 dark:bg-white dark:hover:bg-zinc-200 text-white dark:text-black px-4 py-2 rounded-full text-sm font-medium transition-transform active:scale-95 flex items-center gap-2 shadow-sm">
+                    <i data-lucide="upload-cloud" class="w-4 h-4"></i>
+                    <span>Open ZIP</span>
+                </label>
+            </div>
+        </header>
+
+        <!-- Content Area: Flex row (Sidebar + Main) -->
+        <div class="flex relative overflow-hidden h-full">
+            
+            <!-- Sidebar: File Explorer -->
+            <!-- Mobile: Absolute overlay. Desktop: Relative flex item -->
+            <aside id="sidebar" class="absolute md:relative z-30 w-72 h-full bg-zinc-50/50 dark:bg-zinc-950/50 backdrop-blur-xl border-r border-zinc-200 dark:border-zinc-800 transform -translate-x-full md:translate-x-0 transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] flex flex-col">
+                <div class="p-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between shrink-0">
+                    <span class="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Explorer</span>
+                    <span id="file-count" class="text-xs text-zinc-400">0 files</span>
+                </div>
+                
+                <!-- File Tree List -->
+                <div id="file-tree" class="flex-1 overflow-y-auto scroll-y-auto p-2 select-text">
+                    <!-- Empty State -->
+                    <div class="h-full flex flex-col items-center justify-center text-center p-6 text-zinc-400">
+                        <i data-lucide="folder-open" class="w-10 h-10 mb-3 opacity-20"></i>
+                        <p class="text-sm">No project loaded</p>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Backdrop for Mobile Sidebar -->
+            <div id="sidebar-backdrop" class="absolute inset-0 bg-black/50 z-20 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-300 md:hidden"></div>
+
+            <!-- Main Preview/Code Area -->
+            <main class="flex-1 relative bg-white dark:bg-zinc-900 overflow-hidden flex flex-col w-full min-w-0">
+                
+                <!-- View Tabs -->
+                <div id="view-tabs" class="h-10 border-b border-zinc-200 dark:border-zinc-800 flex bg-white dark:bg-zinc-950 shrink-0 hidden">
+                    <button class="view-tab active flex-1 md:flex-none px-6 text-sm font-medium border-b-2 border-black dark:border-white text-black dark:text-white transition-colors" data-view="preview">Preview</button>
+                    <button class="view-tab flex-1 md:flex-none px-6 text-sm font-medium border-b-2 border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300 transition-colors" data-view="code">Code</button>
+                </div>
+
+                <!-- Content Container -->
+                <div class="relative flex-1 w-full overflow-hidden bg-zinc-100 dark:bg-black">
+                    
+                    <!-- Landing / Empty State -->
+                    <div id="landing-hero" class="absolute inset-0 flex flex-col items-center justify-center p-6 text-center z-10 bg-white dark:bg-zinc-950">
+                        <div class="w-16 h-16 bg-gradient-to-tr from-zinc-200 to-zinc-100 dark:from-zinc-800 dark:to-zinc-900 rounded-2xl flex items-center justify-center mb-6 shadow-xl shadow-zinc-200/50 dark:shadow-none">
+                            <i data-lucide="package" class="w-8 h-8 text-zinc-800 dark:text-zinc-200"></i>
+                        </div>
+                        <h1 class="text-3xl font-bold mb-3 tracking-tight">Archive Studio</h1>
+                        <p class="text-zinc-500 max-w-sm mx-auto mb-8 leading-relaxed">
+                            Preview React builds, static sites, and code files instantly. Secure, client-side, and edge-to-edge optimized.
+                        </p>
+                        
+                        <div class="flex flex-wrap gap-2 justify-center text-xs font-mono text-zinc-400">
+                            <span class="bg-zinc-100 dark:bg-zinc-900 px-2 py-1 rounded">.zip</span>
+                            <span class="bg-zinc-100 dark:bg-zinc-900 px-2 py-1 rounded">.html</span>
+                            <span class="bg-zinc-100 dark:bg-zinc-900 px-2 py-1 rounded">.jsx</span>
+                            <span class="bg-zinc-100 dark:bg-zinc-900 px-2 py-1 rounded">.json</span>
+                        </div>
+                    </div>
+
+                    <!-- Loader -->
+                    <div id="loader" class="absolute inset-0 bg-white/80 dark:bg-black/80 backdrop-blur z-50 hidden flex flex-col items-center justify-center">
+                        <div class="spinner text-black dark:text-white mb-3"></div>
+                        <p id="loader-text" class="text-sm font-medium animate-pulse">Processing...</p>
+                    </div>
+
+                    <!-- Iframe Preview -->
+                    <div id="preview-container" class="absolute inset-0 w-full h-full bg-white hidden">
+                        <iframe id="preview-frame" class="w-full h-full border-0" sandbox="allow-scripts allow-same-origin allow-forms allow-modals"></iframe>
+                    </div>
+
+                    <!-- Code Viewer -->
+                    <div id="code-container" class="absolute inset-0 w-full h-full overflow-auto scroll-y-auto hidden bg-[#09090b]">
+                        <pre class="min-h-full p-4 text-sm font-mono"><code id="code-block" class="language-javascript"></code></pre>
+                    </div>
+
+                    <!-- Image Preview -->
+                    <div id="image-container" class="absolute inset-0 w-full h-full flex items-center justify-center hidden p-4">
+                        <img id="image-preview" class="max-w-full max-h-full object-contain drop-shadow-2xl rounded-lg">
+                    </div>
+
+                </div>
+            </main>
+        </div>
+        
+        <!-- Toast Notification (Above Safe Area) -->
+        <div id="toast" class="fixed left-1/2 -translate-x-1/2 bottom-[calc(var(--safe-bottom)+20px)] bg-zinc-900 dark:bg-zinc-100 text-white dark:text-black px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 transition-all duration-300 translate-y-24 opacity-0 z-[60]">
+            <i id="toast-icon" data-lucide="info" class="w-4 h-4"></i>
+            <span id="toast-msg" class="text-sm font-medium">Notification</span>
+        </div>
+
+    </div>
+
+    <script>
+        /**
+         * Archive v3.0 Core Logic
+         * Modern ES6+ Architecture
+         */
+        
+        const App = {
+            state: {
+                zip: null,
+                files: {},
+                activeFile: null,
+                blobUrls: [], // Track for cleanup
+                isStaticMode: false,
+                htmlCache: new Map()
+            },
+
+            ui: {
+                fileTree: document.getElementById('file-tree'),
+                previewFrame: document.getElementById('preview-frame'),
+                codeBlock: document.getElementById('code-block'),
+                sidebar: document.getElementById('sidebar'),
+                landing: document.getElementById('landing-hero'),
+                tabs: document.getElementById('view-tabs')
+            },
+
+            init() {
+                this.bindEvents();
+                lucide.createIcons();
+                this.log('Archive initialized ready for iOS/Android');
+            },
+
+            log(msg) {
+                console.log(`%c[Archive] ${msg}`, 'color: #3b82f6; font-weight: bold;');
+            },
+
+            bindEvents() {
+                // File Input
+                document.getElementById('zip-input').addEventListener('change', (e) => {
+                    if (e.target.files.length) this.loadZip(e.target.files[0]);
+                });
+
+                // Drag & Drop
+                const dropZone = document.getElementById('drop-zone');
+                document.body.addEventListener('dragenter', () => dropZone.classList.remove('hidden', 'flex'));
+                document.body.addEventListener('dragenter', () => dropZone.classList.add('flex'));
+                
+                dropZone.addEventListener('dragleave', (e) => {
+                    if (e.target === dropZone) dropZone.classList.remove('flex');
+                    if (e.target === dropZone) dropZone.classList.add('hidden');
+                });
+                
+                document.body.addEventListener('dragover', (e) => e.preventDefault());
+                document.body.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    dropZone.classList.add('hidden');
+                    dropZone.classList.remove('flex');
+                    if (e.dataTransfer.files.length) {
+                        const file = e.dataTransfer.files[0];
+                        if (file.name.endsWith('.zip')) this.loadZip(file);
+                        else this.toast('Please upload a ZIP file', 'alert-circle');
+                    }
+                });
+
+                // Mobile Sidebar
+                const backdrop = document.getElementById('sidebar-backdrop');
+                const toggleSidebar = () => {
+                    const isOpen = !this.ui.sidebar.classList.contains('-translate-x-full');
+                    if (isOpen) {
+                        this.ui.sidebar.classList.add('-translate-x-full');
+                        backdrop.classList.remove('opacity-100', 'pointer-events-auto');
+                        backdrop.classList.add('opacity-0', 'pointer-events-none');
+                    } else {
+                        this.ui.sidebar.classList.remove('-translate-x-full');
+                        backdrop.classList.remove('opacity-0', 'pointer-events-none');
+                        backdrop.classList.add('opacity-100', 'pointer-events-auto');
+                    }
+                };
+                
+                document.getElementById('menu-btn').addEventListener('click', toggleSidebar);
+                backdrop.addEventListener('click', toggleSidebar);
+
+                // View Tabs
+                document.querySelectorAll('.view-tab').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        this.switchView(btn.dataset.view);
+                        document.querySelectorAll('.view-tab').forEach(b => {
+                            b.classList.remove('active', 'border-black', 'dark:border-white', 'text-black', 'dark:text-white');
+                            b.classList.add('border-transparent', 'text-zinc-500');
+                        });
+                        btn.classList.add('active', 'border-black', 'dark:border-white', 'text-black', 'dark:text-white');
+                        btn.classList.remove('border-transparent', 'text-zinc-500');
+                    });
+                });
+
+                // Static Mode Toggle
+                const staticToggleBtn = document.getElementById('static-toggle');
+                staticToggleBtn.addEventListener('click', () => {
+                    this.state.isStaticMode = !this.state.isStaticMode;
+                    const indicator = staticToggleBtn.querySelector('div');
+                    
+                    if (this.state.isStaticMode) {
+                        staticToggleBtn.classList.replace('bg-zinc-300', 'bg-green-500');
+                        staticToggleBtn.classList.replace('dark:bg-zinc-700', 'dark:bg-green-500');
+                        indicator.classList.add('translate-x-4');
+                        this.toast('Static Mode: Scripts Disabled', 'shield');
+                    } else {
+                        staticToggleBtn.classList.replace('bg-green-500', 'bg-zinc-300');
+                        staticToggleBtn.classList.replace('dark:bg-green-500', 'dark:bg-zinc-700');
+                        indicator.classList.remove('translate-x-4');
+                        this.toast('Dynamic Mode: Scripts Enabled', 'zap');
+                    }
+
+                    // Reload current file if it's HTML
+                    if (this.state.activeFile && this.state.activeFile.name.endsWith('.html')) {
+                        this.state.htmlCache.clear(); // Clear cache to force re-process
+                        this.openFile(this.state.activeFile);
+                    }
+                });
+            },
+
+            async loadZip(file) {
+                this.setLoader(true, 'Extracting ZIP...');
+                this.cleanup(); // Clear old blobs
+                
+                try {
+                    const zip = await JSZip.loadAsync(file);
+                    this.state.zip = zip;
+                    this.state.files = zip.files;
+                    
+                    this.renderFileTree();
+                    this.ui.landing.classList.add('hidden');
+                    
+                    // Auto-open index.html if exists
+                    const indexFile = Object.values(zip.files).find(f => 
+                        !f.dir && (f.name.endsWith('index.html') || f.name === 'index.html')
+                    );
+                    
+                    if (indexFile) {
+                        await this.openFile(indexFile);
+                    } else {
+                        // Find first file
+                        const firstFile = Object.values(zip.files).find(f => !f.dir);
+                        if (firstFile) await this.openFile(firstFile);
+                    }
+
+                    document.getElementById('file-count').textContent = `${Object.keys(zip.files).filter(k => !zip.files[k].dir).length} items`;
+                    this.toast('Project loaded successfully', 'check-circle');
+
+                } catch (err) {
+                    console.error(err);
+                    this.toast('Failed to load ZIP', 'alert-triangle');
+                } finally {
+                    this.setLoader(false);
+                }
+            },
+
+            renderFileTree() {
+                const tree = {};
+                
+                // Build tree structure
+                Object.keys(this.state.files).forEach(path => {
+                    const parts = path.split('/');
+                    let current = tree;
+                    parts.forEach((part, i) => {
+                        if (!part) return; // Trailing slash check
+                        if (!current[part]) {
+                            current[part] = (i === parts.length - 1 && !this.state.files[path].dir) 
+                                ? { __file: this.state.files[path] } 
+                                : {};
+                        }
+                        current = current[part];
+                    });
+                });
+
+                // Recursive render
+                const buildDom = (node, path = '') => {
+                    const ul = document.createElement('ul');
+                    ul.className = 'pl-3';
+                    
+                    // Sort: Folders first, then files
+                    const keys = Object.keys(node).sort((a, b) => {
+                        const aIsFile = !!node[a].__file;
+                        const bIsFile = !!node[b].__file;
+                        if (aIsFile === bIsFile) return a.localeCompare(b);
+                        return aIsFile ? 1 : -1;
+                    });
+
+                    keys.forEach(key => {
+                        const item = node[key];
+                        const li = document.createElement('li');
+                        li.className = 'my-0.5';
+
+                        if (item.__file) {
+                            // File Node
+                            const btn = document.createElement('button');
+                            btn.className = 'w-full text-left flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-800 text-sm text-zinc-600 dark:text-zinc-400 truncate transition-colors file-btn';
+                            
+                            // File Icon Logic
+                            let icon = 'file';
+                            if (key.endsWith('.html')) icon = 'code-2';
+                            else if (key.match(/\.(js|ts|jsx|tsx)$/)) icon = 'file-code';
+                            else if (key.match(/\.(css|scss)$/)) icon = 'palette';
+                            else if (key.match(/\.(png|jpg|svg)$/)) icon = 'image';
+                            
+                            btn.innerHTML = `<i data-lucide="${icon}" class="w-4 h-4 opacity-70"></i> <span class="truncate">${key}</span>`;
+                            btn.onclick = () => {
+                                document.querySelectorAll('.file-btn').forEach(b => b.classList.remove('bg-zinc-200', 'dark:bg-zinc-800', 'text-black', 'dark:text-white', 'font-medium'));
+                                btn.classList.add('bg-zinc-200', 'dark:bg-zinc-800', 'text-black', 'dark:text-white', 'font-medium');
+                                this.openFile(item.__file);
+                                
+                                // Close sidebar on mobile
+                                if (window.innerWidth < 768) {
+                                    document.getElementById('menu-btn').click();
+                                }
+                            };
+                            li.appendChild(btn);
+                        } else {
+                            // Folder Node
+                            const wrapper = document.createElement('div');
+                            
+                            const header = document.createElement('button');
+                            header.className = 'w-full text-left flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800/50 text-sm font-medium text-zinc-800 dark:text-zinc-200 transition-colors';
+                            header.innerHTML = `
+                                <i data-lucide="chevron-right" class="w-4 h-4 transition-transform duration-200"></i>
+                                <i data-lucide="folder" class="w-4 h-4 text-yellow-500/80"></i>
+                                <span class="truncate">${key}</span>
+                            `;
+                            
+                            const content = document.createElement('div');
+                            content.className = 'folder-content';
+                            const inner = document.createElement('div');
+                            inner.className = 'folder-inner border-l border-zinc-200 dark:border-zinc-800 ml-2.5';
+                            
+                            inner.appendChild(buildDom(item, path + key + '/'));
+                            content.appendChild(inner);
+
+                            header.onclick = () => {
+                                const isOpen = content.classList.toggle('open');
+                                header.querySelector('[data-lucide="chevron-right"]').style.transform = isOpen ? 'rotate(90deg)' : 'rotate(0deg)';
+                                header.querySelector('[data-lucide="folder"]').setAttribute('data-lucide', isOpen ? 'folder-open' : 'folder');
+                                lucide.createIcons();
+                            };
+
+                            wrapper.appendChild(header);
+                            wrapper.appendChild(content);
+                            li.appendChild(wrapper);
+                            
+                            // Auto open first level
+                            if (path === '') header.click(); 
+                        }
+                        ul.appendChild(li);
+                    });
+                    return ul;
+                };
+
+                this.ui.fileTree.innerHTML = '';
+                this.ui.fileTree.appendChild(buildDom(tree));
+                lucide.createIcons();
+            },
+
+            async openFile(file) {
+                this.state.activeFile = file;
+                const ext = file.name.split('.').pop().toLowerCase();
+                const isImage = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'].includes(ext);
+                const isHtml = ext === 'html';
+                
+                // UI Toggle Logic
+                const toggleContainer = document.getElementById('static-toggle-container');
+                const tabs = document.getElementById('view-tabs');
+                
+                if (isHtml) {
+                    toggleContainer.classList.remove('hidden');
+                    toggleContainer.classList.add('flex');
+                    tabs.classList.remove('hidden');
+                } else {
+                    toggleContainer.classList.add('hidden');
+                    toggleContainer.classList.remove('flex');
+                    // Hide tabs if not html (simplified for now, images auto-show)
+                    if (!isImage) tabs.classList.remove('hidden');
+                    else tabs.classList.add('hidden');
+                }
+
+                this.setLoader(true, 'Reading file...');
+
+                try {
+                    if (isImage) {
+                        const blob = await file.async('blob');
+                        const url = URL.createObjectURL(blob);
+                        this.state.blobUrls.push(url);
+                        document.getElementById('image-preview').src = url;
+                        this.switchView('image');
+                    } else {
+                        // Text/Code/HTML
+                        const text = await file.async('string');
+                        
+                        // Set Code View
+                        this.ui.codeBlock.textContent = text;
+                        this.ui.codeBlock.className = `language-${ext}`;
+                        Prism.highlightElement(this.ui.codeBlock);
+
+                        if (isHtml) {
+                            await this.processAndPreviewHtml(file, text);
+                            this.switchView('preview');
+                            // Update tabs UI
+                            document.querySelector('[data-view="preview"]').click();
+                        } else {
+                            this.switchView('code');
+                            if(!tabs.classList.contains('hidden')) {
+                                document.querySelector('[data-view="code"]').click();
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.error(e);
+                    this.toast('Error reading file', 'x-circle');
+                } finally {
+                    this.setLoader(false);
+                }
+            },
+
+            async processAndPreviewHtml(file, htmlContent) {
+                // Check cache
+                const cacheKey = file.name + (this.state.isStaticMode ? '_static' : '_dynamic');
+                if (this.state.htmlCache.has(cacheKey)) {
+                    this.ui.previewFrame.src = this.state.htmlCache.get(cacheKey);
+                    return;
+                }
+
+                this.setLoader(true, 'Processing assets...');
+
+                let processedHtml = htmlContent;
+                const folderPath = file.name.substring(0, file.name.lastIndexOf('/'));
+                
+                // 1. Process Assets (Images, CSS, JS linked in HTML)
+                // Regex to find src="..." or href="..."
+                const regex = /(src|href)="([^"]+)"/g;
+                const matches = [...htmlContent.matchAll(regex)];
+                
+                for (const match of matches) {
+                    const attr = match[1]; // src or href
+                    const relativePath = match[2];
+                    
+                    // Skip absolute URLs, anchors, or data URIs
+                    if (relativePath.startsWith('http') || relativePath.startsWith('#') || relativePath.startsWith('data:')) continue;
+
+                    // Resolve path
+                    // Simplified path resolution handling ../
+                    let absolutePath = relativePath;
+                    if (!relativePath.startsWith('/')) {
+                        const parts = (folderPath ? folderPath + '/' : '') + relativePath;
+                        absolutePath = parts;
+                        // Handle ../ crudely (better path resolver needed for complex apps but works for flat/simple)
+                        while(absolutePath.includes('../')) {
+                           absolutePath = absolutePath.replace(/[^\/]+\/\.\.\//, '');
+                        }
+                    } else {
+                        absolutePath = relativePath.substring(1);
+                    }
+
+                    const linkedFile = this.state.files[absolutePath];
+                    if (linkedFile) {
+                        const blob = await linkedFile.async('blob');
+                        let mime = 'application/octet-stream';
+                        if (absolutePath.endsWith('.css')) mime = 'text/css';
+                        else if (absolutePath.endsWith('.js')) mime = 'application/javascript';
+                        else if (absolutePath.endsWith('.png')) mime = 'image/png';
+                        
+                        const blobUrl = URL.createObjectURL(new Blob([blob], { type: mime }));
+                        this.state.blobUrls.push(blobUrl);
+                        
+                        // Replace in HTML
+                        processedHtml = processedHtml.replace(match[0], `${attr}="${blobUrl}"`);
+                    }
+                }
+
+                // 2. Static Mode Logic
+                if (this.state.isStaticMode) {
+                    // Remove scripts
+                    processedHtml = processedHtml.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "");
+                    // Add banner
+                    const banner = `<div style="background:#22c55e;color:white;padding:4px;text-align:center;font-family:sans-serif;font-size:12px;">Static Preview Mode</div>`;
+                    processedHtml = banner + processedHtml;
+                }
+
+                // 3. Create Final Blob
+                const finalBlob = new Blob([processedHtml], { type: 'text/html' });
+                const finalUrl = URL.createObjectURL(finalBlob);
+                this.state.blobUrls.push(finalUrl);
+                this.state.htmlCache.set(cacheKey, finalUrl);
+
+                this.ui.previewFrame.src = finalUrl;
+            },
+
+            switchView(viewName) {
+                document.getElementById('preview-container').classList.add('hidden');
+                document.getElementById('code-container').classList.add('hidden');
+                document.getElementById('image-container').classList.add('hidden');
+
+                if (viewName === 'preview') document.getElementById('preview-container').classList.remove('hidden');
+                else if (viewName === 'code') document.getElementById('code-container').classList.remove('hidden');
+                else if (viewName === 'image') document.getElementById('image-container').classList.remove('hidden');
+            },
+
+            setLoader(active, text = 'Loading...') {
+                const el = document.getElementById('loader');
+                document.getElementById('loader-text').textContent = text;
+                if (active) el.classList.remove('hidden');
+                else el.classList.add('hidden');
+            },
+
+            toast(msg, iconName = 'info') {
+                const el = document.getElementById('toast');
+                document.getElementById('toast-msg').textContent = msg;
+                document.getElementById('toast-icon').setAttribute('data-lucide', iconName);
+                lucide.createIcons();
+                
+                el.classList.remove('translate-y-24', 'opacity-0');
+                
+                clearTimeout(this.toastTimeout);
+                this.toastTimeout = setTimeout(() => {
+                    el.classList.add('translate-y-24', 'opacity-0');
+                }, 3000);
+            },
+
+            cleanup() {
+                this.state.blobUrls.forEach(url => URL.revokeObjectURL(url));
+                this.state.blobUrls = [];
+                this.state.htmlCache.clear();
+                this.ui.previewFrame.src = 'about:blank';
+                this.ui.codeBlock.textContent = '';
+                document.getElementById('image-preview').src = '';
+            }
+        };
+
+        // Initialize on Load
+        window.addEventListener('DOMContentLoaded', () => App.init());
+
+    </script>
+</body>
+</html>
