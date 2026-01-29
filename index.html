@@ -145,56 +145,58 @@
         
         /* ===== iOS SAFE AREA FIX - BAŞLANGIÇ ===== */
         
-        /* 1. HTML temel ayarları */
+        /* 1. HTML temel ayarları - iOS Safari için force edilmiş viewport davranışı */
         html {
             scroll-behavior: smooth;
             height: 100%;
             height: 100dvh;
             background: #ffffff;
             overscroll-behavior: none;
+            /* iOS Safari için force edilmiş viewport davranışı */
+            position: fixed;
+            width: 100%;
+            overflow: hidden;
             /* CRITICAL: iOS Safari'nin html'e eklediği padding'i sıfırla */
             padding: 0 !important;
             margin: 0 !important;
         }
 
-        /* 2. Body - Agresif reset */
+        /* 2. Body - CRITICAL: Viewport birimi + Safe Area kombinasyonu */
         body {
             font-family: 'Inter', system-ui, sans-serif;
             display: flex;
             flex-direction: column;
             color: #09090b;
             background: #ffffff;
-            min-height: 100dvh;
-            height: 100dvh;
-            width: 100vw;
-            overflow: hidden;
-            overscroll-behavior: none;
-            -webkit-overflow-scrolling: touch;
             
-            /* TÜM PADDING'LERİ SIFIRLA - env() kullanma! */
-            padding: 0 !important;
-            padding-top: 0 !important;
-            padding-bottom: 0 !important;
+            /* CRITICAL: Viewport birimi + Safe Area kombinasyonu */
+            height: 100%;
+            height: 100dvh;
+            height: 100vh; /* Fallback */
+            
+            /* Safe area ekleyerek alt bar'ın içeriği kapatmasını engelle */
+            padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+            padding-top: env(safe-area-inset-top, 0px);
             padding-left: 0 !important;
             padding-right: 0 !important;
             
             /* TÜM MARGIN'LERİ SIFIRLA */
             margin: 0 !important;
-            margin-top: 0 !important;
-            margin-bottom: 0 !important;
-            margin-left: 0 !important;
-            margin-right: 0 !important;
             
             /* iOS Safari specific fix */
             -webkit-padding-start: 0 !important;
             -webkit-padding-end: 0 !important;
+            
+            overflow: hidden;
+            overscroll-behavior: none;
+            -webkit-overflow-scrolling: touch;
             
             /* Box sizing */
             box-sizing: border-box;
         }
 
         
-        /* 4. Ana container - Tüm ekranı kaplasın */
+        /* 4. Ana container - Height hesaplamasını safe area ile sınırla */
         .app-main {
             display: flex;
             flex: 1;
@@ -202,9 +204,12 @@
             position: relative;
             background: #ffffff;
             min-height: 0;
-            height: 100%;
+            
+            /* Height hesaplamasını safe area ile sınırla */
+            height: calc(100% - env(safe-area-inset-bottom, 0px));
+            max-height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+            
             width: 100%;
-            /* Safe area yok - tamamen edge-to-edge */
             padding: 0 !important;
             margin: 0 !important;
         }
@@ -278,7 +283,7 @@
             margin: 8px auto 4px;
         }
         
-        /* 5. Workspace - İçerik alanı */
+        /* 5. Workspace - İçerik alanı + Safe area constraint */
         #workspace {
             flex: 1;
             display: flex;
@@ -289,7 +294,10 @@
             overflow: hidden;
             height: 100%;
             width: 100%;
-            /* Safe area yok */
+            
+            /* Safe area constraint */
+            max-height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 56px); /* 56px header */
+            
             padding: 0 !important;
             margin: 0 !important;
         }
@@ -342,31 +350,37 @@
             margin: 0 !important;
         }
         
-        /* 6. Preview Container - En önemli kısım */
+        /* 6. Preview Container - En önemli kısım (CRITICAL: Safe area fix) */
         #pContainer {
             position: absolute;
-            top: 0;
+            top: env(safe-area-inset-top, 0); /* Notch/Island için */
             left: 0;
             right: 0;
-            /* BOTTOM'U SIFIR YAP - safe area yok! */
-            bottom: 0 !important;
+            
+            /* CRITICAL: 0 yerine safe area kullan */
+            bottom: env(safe-area-inset-bottom, 0px) !important;
+            
             display: flex;
             flex-direction: column;
             background: #ffffff;
             z-index: 10;
-            /* Padding yok */
             padding: 0 !important;
             margin: 0 !important;
+            
+            /* İçeriğin hesaplanmış yüksekliği */
+            height: calc(100% - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
         }
         
-        /* 7. iFrame - Tamamen edge-to-edge */
+        /* 7. iFrame - Tamamen edge-to-edge + iOS iframe bottom fix */
         #pContainer iframe {
             flex: 1;
             width: 100%;
             height: 100%;
             border: none;
             display: block;
-            /* iOS iframe fix */
+            /* iOS iframe bottom fix */
+            padding-bottom: 0;
+            margin-bottom: 0;
             min-height: 100%;
         }
         
@@ -1542,17 +1556,27 @@
             }
             
             // ============================================================
-            // VIEWPORT HEIGHT SYNC (iOS Safari)
+            // VIEWPORT HEIGHT SYNC (iOS Safari) - Enhanced Safe Area Support
             // ============================================================
             
             let lastAppHeight = 0;
             function syncAppHeight() {
-                const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
-                if (!height) return;
-                if (Math.abs(height - lastAppHeight) < 1) return;
-                lastAppHeight = height;
-                // No longer strictly needed with 100dvh, but kept for fallback
-                document.documentElement.style.setProperty('--app-height', `${height}px`);
+                const vh = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+                if (!vh) return;
+                if (Math.abs(vh - lastAppHeight) < 1) return;
+                lastAppHeight = vh;
+                
+                // Set CSS custom properties for viewport height
+                document.documentElement.style.setProperty('--app-height', `${vh}px`);
+                document.documentElement.style.setProperty('--real-vh', `${vh}px`);
+                
+                // Get safe area insets from computed styles
+                const computedStyle = getComputedStyle(document.documentElement);
+                const safeAreaBottom = computedStyle.getPropertyValue('env(safe-area-inset-bottom)') || '0px';
+                document.documentElement.style.setProperty('--safe-bottom', safeAreaBottom);
+                
+                // Force body height for iOS Safari dynamic toolbar behavior
+                document.body.style.height = `${vh}px`;
             }
             
             function initViewportHeight() {
