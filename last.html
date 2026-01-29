@@ -2,27 +2,28 @@
 <html lang="en" class="antialiased">
 <head>
     <meta charset="UTF-8">
-    <!-- CRITICAL: viewport-fit=cover for Edge-to-Edge on iOS/Android -->
+    <!-- CRITICAL: viewport-fit=cover ve user-scalable=no, iOS Safari'de tam ekran deneyimi sağlar -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     
     <title>Archive - Modern ZIP Preview Studio</title>
     
-    <!-- SEO & Meta -->
+    <!-- Meta Tags -->
     <meta name="title" content="Archive - ZIP Preview Studio">
     <meta name="description" content="Next-gen ZIP file viewer. Preview React, HTML, code & images instantly. 100% Client-side.">
+    <!-- Safari Status Bar Rengi (Header ile uyumlu olması için dinamik) -->
     <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#09090b" media="(prefers-color-scheme: dark)">
     
-    <!-- iOS PWA Capable -->
+    <!-- PWA Settings -->
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="Archive">
 
     <!-- Dependencies -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     
-    <!-- Prism for Code Highlighting -->
+    <!-- Prism Code Highlighting -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-markup.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-css.min.js"></script>
@@ -54,7 +55,7 @@
                         foreground: "hsl(var(--foreground))",
                     },
                     height: {
-                        'screen-dvh': '100dvh', // Key for iOS Safari
+                        'screen-dvh': '100dvh',
                     }
                 }
             }
@@ -66,6 +67,7 @@
             --background: 0 0% 100%;
             --foreground: 240 10% 3.9%;
             --border: 240 5.9% 90%;
+            /* Safe area değişkenlerini tanımlıyoruz ama global padding olarak kullanmıyoruz */
             --safe-top: env(safe-area-inset-top, 0px);
             --safe-bottom: env(safe-area-inset-bottom, 0px);
             --safe-left: env(safe-area-inset-left, 0px);
@@ -80,41 +82,47 @@
             }
         }
 
-        /* HARD RESET FOR IOS OVERSCROLL */
+        /* IOS FIX: html ve body'yi fixed yaparak scroll bounce'u engelliyoruz.
+           100dvh sayesinde adres çubuğu açılıp kapansa da tam oturur.
+        */
         html, body {
             height: 100dvh;
-            width: 100%;
-            overflow: hidden; /* Prevent body scroll */
-            overscroll-behavior: none; /* No bounce */
-            -webkit-user-select: none;
-            user-select: none;
+            width: 100vw;
+            overflow: hidden;
+            position: fixed; /* iOS'te sayfanın kaymasını engeller */
+            inset: 0;
             background-color: hsl(var(--background));
             color: hsl(var(--foreground));
+            -webkit-tap-highlight-color: transparent;
         }
 
-        /* Specific Scroll Areas */
-        .scroll-y-auto {
-            -webkit-overflow-scrolling: touch;
-            overscroll-behavior-y: contain;
-        }
-
-        /* App Layout Grid */
+        /* App Root: Flex column düzeni */
         #app-root {
-            display: grid;
-            grid-template-rows: auto 1fr; /* Header + Main */
-            height: 100dvh;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
             width: 100%;
-            position: fixed; /* Prevent iOS URL bar shift */
-            top: 0;
-            left: 0;
-            padding-top: var(--safe-top);
-            padding-bottom: var(--safe-bottom); /* Key for Home Indicator */
-            padding-left: var(--safe-left);
-            padding-right: var(--safe-right);
-            background-color: hsl(var(--background));
+            /* Padding vermiyoruz, iç elemanlar safe-area'yı yönetecek */
         }
 
-        /* Syntax Highlighting Tweaks */
+        /* Header: Safe area top kadar padding alır */
+        header {
+            padding-top: var(--safe-top);
+            height: calc(3.5rem + var(--safe-top));
+            padding-left: max(1rem, var(--safe-left));
+            padding-right: max(1rem, var(--safe-right));
+        }
+
+        /* Sidebar & Main: Alt kısımlar safe area bottom kadar padding alır */
+        .safe-bottom-padding {
+            padding-bottom: var(--safe-bottom);
+        }
+        
+        .safe-left-padding {
+            padding-left: var(--safe-left);
+        }
+
+        /* Syntax Highlighting */
         pre[class*="language-"] {
             margin: 0 !important;
             border-radius: 0 !important;
@@ -122,7 +130,20 @@
             background: #09090b !important;
         }
 
-        /* Loaders */
+        /* Scrollbar improvements */
+        .custom-scroll {
+            -webkit-overflow-scrolling: touch;
+        }
+        .custom-scroll::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: rgba(128, 128, 128, 0.2);
+            border-radius: 10px;
+        }
+
+        /* Loader Animation */
         .spinner {
             border: 2px solid rgba(255,255,255,0.1);
             border-left-color: currentColor;
@@ -155,112 +176,132 @@
         <p class="text-2xl font-bold text-blue-500">Drop ZIP here</p>
     </div>
 
-    <!-- Main App Structure -->
+    <!-- App Root -->
     <div id="app-root">
         
-        <!-- Header: Fixed height, border bottom -->
-        <header class="h-14 flex items-center justify-between px-4 border-b border-zinc-200 dark:border-zinc-800 shrink-0 bg-white dark:bg-zinc-950 z-20">
-            <div class="flex items-center gap-3">
+        <!-- Header -->
+        <header class="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 shrink-0 bg-white dark:bg-zinc-950 z-20 transition-colors duration-200">
+            <div class="flex items-center gap-3 h-14 w-full">
                 <button id="menu-btn" class="md:hidden p-2 -ml-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 active:scale-95 transition-transform">
                     <i data-lucide="menu" class="w-5 h-5"></i>
                 </button>
-                <div class="flex items-center gap-2 font-bold text-lg tracking-tight">
+                <div class="flex items-center gap-2 font-bold text-lg tracking-tight select-none cursor-pointer" onclick="window.location.reload()">
                     <div class="w-8 h-8 bg-black dark:bg-white text-white dark:text-black rounded-lg flex items-center justify-center">
                         <i data-lucide="archive" class="w-4 h-4"></i>
                     </div>
                     <span class="hidden sm:block">Archive</span>
                 </div>
-            </div>
 
-            <div class="flex items-center gap-2">
-                <!-- Static Toggle (Hidden initially) -->
-                <div id="static-toggle-container" class="hidden items-center gap-2 mr-2 bg-zinc-100 dark:bg-zinc-900 px-2 py-1 rounded-md">
-                    <span class="text-[10px] font-semibold uppercase text-zinc-500">Static</span>
-                    <button id="static-toggle" class="w-8 h-4 bg-zinc-300 dark:bg-zinc-700 rounded-full relative transition-colors" aria-pressed="false">
-                        <div class="w-4 h-4 bg-white rounded-full shadow-sm absolute top-0 left-0 transition-transform scale-90"></div>
-                    </button>
+                <div class="flex items-center gap-2 ml-auto">
+                    <!-- Static Toggle -->
+                    <div id="static-toggle-container" class="hidden items-center gap-2 mr-2 bg-zinc-100 dark:bg-zinc-900 px-2 py-1 rounded-md">
+                        <span class="text-[10px] font-semibold uppercase text-zinc-500">Static</span>
+                        <button id="static-toggle" class="w-8 h-4 bg-zinc-300 dark:bg-zinc-700 rounded-full relative transition-colors" aria-pressed="false">
+                            <div class="w-4 h-4 bg-white rounded-full shadow-sm absolute top-0 left-0 transition-transform scale-90"></div>
+                        </button>
+                    </div>
+
+                    <input type="file" id="zip-input" class="hidden" accept=".zip,.rar,.7z">
+                    <label for="zip-input" class="cursor-pointer bg-black hover:bg-zinc-800 dark:bg-white dark:hover:bg-zinc-200 text-white dark:text-black px-4 py-2 rounded-full text-sm font-medium transition-transform active:scale-95 flex items-center gap-2 shadow-sm whitespace-nowrap">
+                        <i data-lucide="upload-cloud" class="w-4 h-4"></i>
+                        <span class="hidden sm:inline">Open ZIP</span>
+                        <span class="sm:hidden">Open</span>
+                    </label>
                 </div>
-
-                <input type="file" id="zip-input" class="hidden" accept=".zip,.rar,.7z">
-                <label for="zip-input" class="cursor-pointer bg-black hover:bg-zinc-800 dark:bg-white dark:hover:bg-zinc-200 text-white dark:text-black px-4 py-2 rounded-full text-sm font-medium transition-transform active:scale-95 flex items-center gap-2 shadow-sm">
-                    <i data-lucide="upload-cloud" class="w-4 h-4"></i>
-                    <span>Open ZIP</span>
-                </label>
             </div>
         </header>
 
-        <!-- Content Area: Flex row (Sidebar + Main) -->
-        <div class="flex relative overflow-hidden h-full">
+        <!-- Main Layout (Flex Row) -->
+        <div class="flex flex-1 relative overflow-hidden">
             
-            <!-- Sidebar: File Explorer -->
-            <!-- Mobile: Absolute overlay. Desktop: Relative flex item -->
-            <aside id="sidebar" class="absolute md:relative z-30 w-72 h-full bg-zinc-50/50 dark:bg-zinc-950/50 backdrop-blur-xl border-r border-zinc-200 dark:border-zinc-800 transform -translate-x-full md:translate-x-0 transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] flex flex-col">
-                <div class="p-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between shrink-0">
+            <!-- Sidebar -->
+            <aside id="sidebar" class="absolute md:relative z-30 w-72 h-full bg-zinc-50/95 dark:bg-zinc-950/95 backdrop-blur-xl border-r border-zinc-200 dark:border-zinc-800 transform -translate-x-full md:translate-x-0 transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] flex flex-col safe-left-padding">
+                <div class="p-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between shrink-0 h-12">
                     <span class="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Explorer</span>
-                    <span id="file-count" class="text-xs text-zinc-400">0 files</span>
+                    <span id="file-count" class="text-xs text-zinc-400">0 items</span>
                 </div>
                 
-                <!-- File Tree List -->
-                <div id="file-tree" class="flex-1 overflow-y-auto scroll-y-auto p-2 select-text">
+                <!-- File Tree -->
+                <div id="file-tree" class="flex-1 overflow-y-auto custom-scroll p-2 select-none safe-bottom-padding">
                     <!-- Empty State -->
                     <div class="h-full flex flex-col items-center justify-center text-center p-6 text-zinc-400">
-                        <i data-lucide="folder-open" class="w-10 h-10 mb-3 opacity-20"></i>
+                        <i data-lucide="folder-dashed" class="w-10 h-10 mb-3 opacity-20"></i>
                         <p class="text-sm">No project loaded</p>
                     </div>
                 </div>
             </aside>
 
-            <!-- Backdrop for Mobile Sidebar -->
+            <!-- Backdrop -->
             <div id="sidebar-backdrop" class="absolute inset-0 bg-black/50 z-20 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-300 md:hidden"></div>
 
-            <!-- Main Preview/Code Area -->
+            <!-- Content Area -->
             <main class="flex-1 relative bg-white dark:bg-zinc-900 overflow-hidden flex flex-col w-full min-w-0">
                 
-                <!-- View Tabs -->
+                <!-- View Tabs (Hidden by default) -->
                 <div id="view-tabs" class="h-10 border-b border-zinc-200 dark:border-zinc-800 flex bg-white dark:bg-zinc-950 shrink-0 hidden">
                     <button class="view-tab active flex-1 md:flex-none px-6 text-sm font-medium border-b-2 border-black dark:border-white text-black dark:text-white transition-colors" data-view="preview">Preview</button>
                     <button class="view-tab flex-1 md:flex-none px-6 text-sm font-medium border-b-2 border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300 transition-colors" data-view="code">Code</button>
                 </div>
 
-                <!-- Content Container -->
+                <!-- Dynamic Content Container -->
                 <div class="relative flex-1 w-full overflow-hidden bg-zinc-100 dark:bg-black">
                     
-                    <!-- Landing / Empty State -->
-                    <div id="landing-hero" class="absolute inset-0 flex flex-col items-center justify-center p-6 text-center z-10 bg-white dark:bg-zinc-950">
-                        <div class="w-16 h-16 bg-gradient-to-tr from-zinc-200 to-zinc-100 dark:from-zinc-800 dark:to-zinc-900 rounded-2xl flex items-center justify-center mb-6 shadow-xl shadow-zinc-200/50 dark:shadow-none">
-                            <i data-lucide="package" class="w-8 h-8 text-zinc-800 dark:text-zinc-200"></i>
-                        </div>
-                        <h1 class="text-3xl font-bold mb-3 tracking-tight">Archive Studio</h1>
-                        <p class="text-zinc-500 max-w-sm mx-auto mb-8 leading-relaxed">
-                            Preview React builds, static sites, and code files instantly. Secure, client-side, and edge-to-edge optimized.
-                        </p>
-                        
-                        <div class="flex flex-wrap gap-2 justify-center text-xs font-mono text-zinc-400">
-                            <span class="bg-zinc-100 dark:bg-zinc-900 px-2 py-1 rounded">.zip</span>
-                            <span class="bg-zinc-100 dark:bg-zinc-900 px-2 py-1 rounded">.html</span>
-                            <span class="bg-zinc-100 dark:bg-zinc-900 px-2 py-1 rounded">.jsx</span>
-                            <span class="bg-zinc-100 dark:bg-zinc-900 px-2 py-1 rounded">.json</span>
+                    <!-- Landing Hero -->
+                    <div id="landing-hero" class="absolute inset-0 flex flex-col items-center justify-center p-6 text-center z-10 bg-white dark:bg-zinc-950 safe-bottom-padding overflow-y-auto custom-scroll">
+                        <div class="max-w-md w-full flex flex-col items-center">
+                            <div class="w-16 h-16 bg-gradient-to-tr from-zinc-200 to-zinc-100 dark:from-zinc-800 dark:to-zinc-900 rounded-2xl flex items-center justify-center mb-6 shadow-xl shadow-zinc-200/50 dark:shadow-none ring-1 ring-zinc-900/5 dark:ring-white/10">
+                                <i data-lucide="package" class="w-8 h-8 text-zinc-800 dark:text-zinc-200"></i>
+                            </div>
+                            <h1 class="text-3xl font-bold mb-3 tracking-tight text-zinc-900 dark:text-zinc-50">Archive Studio</h1>
+                            <p class="text-zinc-500 dark:text-zinc-400 mb-8 leading-relaxed">
+                                Preview React builds, static sites, and code files instantly. Secure, client-side, and edge-to-edge optimized.
+                            </p>
+                            
+                            <div class="flex flex-wrap gap-2 justify-center text-xs font-mono text-zinc-400">
+                                <span class="bg-zinc-100 dark:bg-zinc-900 px-2 py-1 rounded border border-zinc-200 dark:border-zinc-800">.zip</span>
+                                <span class="bg-zinc-100 dark:bg-zinc-900 px-2 py-1 rounded border border-zinc-200 dark:border-zinc-800">.html</span>
+                                <span class="bg-zinc-100 dark:bg-zinc-900 px-2 py-1 rounded border border-zinc-200 dark:border-zinc-800">.jsx</span>
+                            </div>
+                            
+                            <div class="mt-8 pt-8 border-t border-zinc-200 dark:border-zinc-800 w-full flex justify-center gap-6 text-zinc-400">
+                                <div class="flex flex-col items-center gap-1">
+                                    <i data-lucide="shield-check" class="w-5 h-5"></i>
+                                    <span class="text-[10px]">Private</span>
+                                </div>
+                                <div class="flex flex-col items-center gap-1">
+                                    <i data-lucide="zap" class="w-5 h-5"></i>
+                                    <span class="text-[10px]">Fast</span>
+                                </div>
+                                <div class="flex flex-col items-center gap-1">
+                                    <i data-lucide="smartphone" class="w-5 h-5"></i>
+                                    <span class="text-[10px]">Mobile</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
                     <!-- Loader -->
                     <div id="loader" class="absolute inset-0 bg-white/80 dark:bg-black/80 backdrop-blur z-50 hidden flex flex-col items-center justify-center">
                         <div class="spinner text-black dark:text-white mb-3"></div>
-                        <p id="loader-text" class="text-sm font-medium animate-pulse">Processing...</p>
+                        <p id="loader-text" class="text-sm font-medium animate-pulse text-zinc-600 dark:text-zinc-400">Processing...</p>
                     </div>
 
                     <!-- Iframe Preview -->
                     <div id="preview-container" class="absolute inset-0 w-full h-full bg-white hidden">
-                        <iframe id="preview-frame" class="w-full h-full border-0" sandbox="allow-scripts allow-same-origin allow-forms allow-modals"></iframe>
+                        <!-- IMPORTANT: iframe takes 100% height, safe-area handled by content inside iframe or user interaction -->
+                        <iframe id="preview-frame" class="w-full h-full border-0" sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-downloads"></iframe>
                     </div>
 
                     <!-- Code Viewer -->
-                    <div id="code-container" class="absolute inset-0 w-full h-full overflow-auto scroll-y-auto hidden bg-[#09090b]">
-                        <pre class="min-h-full p-4 text-sm font-mono"><code id="code-block" class="language-javascript"></code></pre>
+                    <div id="code-container" class="absolute inset-0 w-full h-full overflow-hidden hidden bg-[#09090b]">
+                        <!-- safe-bottom-padding added to container -->
+                        <div class="h-full w-full overflow-auto custom-scroll safe-bottom-padding">
+                            <pre class="min-h-full p-4 text-sm font-mono"><code id="code-block" class="language-javascript"></code></pre>
+                        </div>
                     </div>
 
                     <!-- Image Preview -->
-                    <div id="image-container" class="absolute inset-0 w-full h-full flex items-center justify-center hidden p-4">
+                    <div id="image-container" class="absolute inset-0 w-full h-full flex items-center justify-center hidden p-4 safe-bottom-padding overflow-auto">
                         <img id="image-preview" class="max-w-full max-h-full object-contain drop-shadow-2xl rounded-lg">
                     </div>
 
@@ -268,8 +309,8 @@
             </main>
         </div>
         
-        <!-- Toast Notification (Above Safe Area) -->
-        <div id="toast" class="fixed left-1/2 -translate-x-1/2 bottom-[calc(var(--safe-bottom)+20px)] bg-zinc-900 dark:bg-zinc-100 text-white dark:text-black px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 transition-all duration-300 translate-y-24 opacity-0 z-[60]">
+        <!-- Toast -->
+        <div id="toast" class="fixed left-1/2 -translate-x-1/2 bottom-[calc(var(--safe-bottom)+20px)] bg-zinc-900/90 dark:bg-zinc-100/90 backdrop-blur text-white dark:text-black px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 transition-all duration-300 translate-y-24 opacity-0 z-[60] pointer-events-none">
             <i id="toast-icon" data-lucide="info" class="w-4 h-4"></i>
             <span id="toast-msg" class="text-sm font-medium">Notification</span>
         </div>
@@ -277,17 +318,12 @@
     </div>
 
     <script>
-        /**
-         * Archive v3.0 Core Logic
-         * Modern ES6+ Architecture
-         */
-        
         const App = {
             state: {
                 zip: null,
                 files: {},
                 activeFile: null,
-                blobUrls: [], // Track for cleanup
+                blobUrls: [],
                 isStaticMode: false,
                 htmlCache: new Map()
             },
@@ -304,11 +340,13 @@
             init() {
                 this.bindEvents();
                 lucide.createIcons();
-                this.log('Archive initialized ready for iOS/Android');
-            },
-
-            log(msg) {
-                console.log(`%c[Archive] ${msg}`, 'color: #3b82f6; font-weight: bold;');
+                
+                // Prevent iOS bounce globally
+                document.body.addEventListener('touchmove', function(e) {
+                    // This is a rough fix, in a real app you might need more specific targeting
+                    // Only prevent default if target isn't scrollable
+                    // For now, reliance on 'position: fixed' body handles most of it.
+                }, { passive: false });
             },
 
             bindEvents() {
@@ -319,22 +357,34 @@
 
                 // Drag & Drop
                 const dropZone = document.getElementById('drop-zone');
-                document.body.addEventListener('dragenter', () => dropZone.classList.remove('hidden', 'flex'));
-                document.body.addEventListener('dragenter', () => dropZone.classList.add('flex'));
+                let dragCounter = 0;
+
+                document.body.addEventListener('dragenter', (e) => {
+                    e.preventDefault();
+                    dragCounter++;
+                    dropZone.classList.remove('hidden');
+                    dropZone.classList.add('flex');
+                });
                 
-                dropZone.addEventListener('dragleave', (e) => {
-                    if (e.target === dropZone) dropZone.classList.remove('flex');
-                    if (e.target === dropZone) dropZone.classList.add('hidden');
+                document.body.addEventListener('dragleave', (e) => {
+                    e.preventDefault();
+                    dragCounter--;
+                    if (dragCounter === 0) {
+                        dropZone.classList.remove('flex');
+                        dropZone.classList.add('hidden');
+                    }
                 });
                 
                 document.body.addEventListener('dragover', (e) => e.preventDefault());
+                
                 document.body.addEventListener('drop', (e) => {
                     e.preventDefault();
+                    dragCounter = 0;
                     dropZone.classList.add('hidden');
                     dropZone.classList.remove('flex');
                     if (e.dataTransfer.files.length) {
                         const file = e.dataTransfer.files[0];
-                        if (file.name.endsWith('.zip')) this.loadZip(file);
+                        if (file.name.toLowerCase().endsWith('.zip')) this.loadZip(file);
                         else this.toast('Please upload a ZIP file', 'alert-circle');
                     }
                 });
@@ -388,9 +438,8 @@
                         this.toast('Dynamic Mode: Scripts Enabled', 'zap');
                     }
 
-                    // Reload current file if it's HTML
                     if (this.state.activeFile && this.state.activeFile.name.endsWith('.html')) {
-                        this.state.htmlCache.clear(); // Clear cache to force re-process
+                        this.state.htmlCache.clear();
                         this.openFile(this.state.activeFile);
                     }
                 });
@@ -398,7 +447,7 @@
 
             async loadZip(file) {
                 this.setLoader(true, 'Extracting ZIP...');
-                this.cleanup(); // Clear old blobs
+                this.cleanup();
                 
                 try {
                     const zip = await JSZip.loadAsync(file);
@@ -408,20 +457,19 @@
                     this.renderFileTree();
                     this.ui.landing.classList.add('hidden');
                     
-                    // Auto-open index.html if exists
                     const indexFile = Object.values(zip.files).find(f => 
-                        !f.dir && (f.name.endsWith('index.html') || f.name === 'index.html')
+                        !f.dir && (f.name.toLowerCase().endsWith('index.html') || f.name.toLowerCase() === 'index.htm')
                     );
                     
                     if (indexFile) {
                         await this.openFile(indexFile);
                     } else {
-                        // Find first file
                         const firstFile = Object.values(zip.files).find(f => !f.dir);
                         if (firstFile) await this.openFile(firstFile);
                     }
 
-                    document.getElementById('file-count').textContent = `${Object.keys(zip.files).filter(k => !zip.files[k].dir).length} items`;
+                    const count = Object.keys(zip.files).filter(k => !zip.files[k].dir).length;
+                    document.getElementById('file-count').textContent = `${count} items`;
                     this.toast('Project loaded successfully', 'check-circle');
 
                 } catch (err) {
@@ -435,12 +483,13 @@
             renderFileTree() {
                 const tree = {};
                 
-                // Build tree structure
                 Object.keys(this.state.files).forEach(path => {
-                    const parts = path.split('/');
+                    // Remove leading slash if exists
+                    const cleanPath = path.startsWith('/') ? path.slice(1) : path;
+                    const parts = cleanPath.split('/');
                     let current = tree;
                     parts.forEach((part, i) => {
-                        if (!part) return; // Trailing slash check
+                        if (!part) return;
                         if (!current[part]) {
                             current[part] = (i === parts.length - 1 && !this.state.files[path].dir) 
                                 ? { __file: this.state.files[path] } 
@@ -450,12 +499,10 @@
                     });
                 });
 
-                // Recursive render
                 const buildDom = (node, path = '') => {
                     const ul = document.createElement('ul');
-                    ul.className = 'pl-3';
+                    ul.className = 'pl-3 border-l border-zinc-200/50 dark:border-zinc-800/50 ml-1.5';
                     
-                    // Sort: Folders first, then files
                     const keys = Object.keys(node).sort((a, b) => {
                         const aIsFile = !!node[a].__file;
                         const bIsFile = !!node[b].__file;
@@ -469,45 +516,43 @@
                         li.className = 'my-0.5';
 
                         if (item.__file) {
-                            // File Node
                             const btn = document.createElement('button');
-                            btn.className = 'w-full text-left flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-800 text-sm text-zinc-600 dark:text-zinc-400 truncate transition-colors file-btn';
+                            btn.className = 'w-full text-left flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50 text-[13px] text-zinc-600 dark:text-zinc-400 truncate transition-colors file-btn select-none';
                             
-                            // File Icon Logic
                             let icon = 'file';
-                            if (key.endsWith('.html')) icon = 'code-2';
-                            else if (key.match(/\.(js|ts|jsx|tsx)$/)) icon = 'file-code';
-                            else if (key.match(/\.(css|scss)$/)) icon = 'palette';
-                            else if (key.match(/\.(png|jpg|svg)$/)) icon = 'image';
+                            const lowerKey = key.toLowerCase();
+                            if (lowerKey.endsWith('.html')) icon = 'code-2';
+                            else if (lowerKey.match(/\.(js|ts|jsx|tsx)$/)) icon = 'file-code';
+                            else if (lowerKey.match(/\.(css|scss|less)$/)) icon = 'palette';
+                            else if (lowerKey.match(/\.(png|jpg|jpeg|gif|svg|webp)$/)) icon = 'image';
+                            else if (lowerKey.match(/\.(json|xml|yaml)$/)) icon = 'file-json';
                             
-                            btn.innerHTML = `<i data-lucide="${icon}" class="w-4 h-4 opacity-70"></i> <span class="truncate">${key}</span>`;
+                            btn.innerHTML = `<i data-lucide="${icon}" class="w-3.5 h-3.5 opacity-70 flex-shrink-0"></i> <span class="truncate">${key}</span>`;
                             btn.onclick = () => {
                                 document.querySelectorAll('.file-btn').forEach(b => b.classList.remove('bg-zinc-200', 'dark:bg-zinc-800', 'text-black', 'dark:text-white', 'font-medium'));
                                 btn.classList.add('bg-zinc-200', 'dark:bg-zinc-800', 'text-black', 'dark:text-white', 'font-medium');
                                 this.openFile(item.__file);
                                 
-                                // Close sidebar on mobile
                                 if (window.innerWidth < 768) {
                                     document.getElementById('menu-btn').click();
                                 }
                             };
                             li.appendChild(btn);
                         } else {
-                            // Folder Node
                             const wrapper = document.createElement('div');
                             
                             const header = document.createElement('button');
-                            header.className = 'w-full text-left flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800/50 text-sm font-medium text-zinc-800 dark:text-zinc-200 transition-colors';
+                            header.className = 'w-full text-left flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800/30 text-[13px] font-medium text-zinc-800 dark:text-zinc-200 transition-colors select-none';
                             header.innerHTML = `
-                                <i data-lucide="chevron-right" class="w-4 h-4 transition-transform duration-200"></i>
-                                <i data-lucide="folder" class="w-4 h-4 text-yellow-500/80"></i>
+                                <i data-lucide="chevron-right" class="w-3.5 h-3.5 transition-transform duration-200 text-zinc-400"></i>
+                                <i data-lucide="folder" class="w-3.5 h-3.5 text-blue-500/80 dark:text-blue-400/80"></i>
                                 <span class="truncate">${key}</span>
                             `;
                             
                             const content = document.createElement('div');
                             content.className = 'folder-content';
                             const inner = document.createElement('div');
-                            inner.className = 'folder-inner border-l border-zinc-200 dark:border-zinc-800 ml-2.5';
+                            inner.className = 'folder-inner';
                             
                             inner.appendChild(buildDom(item, path + key + '/'));
                             content.appendChild(inner);
@@ -523,7 +568,6 @@
                             wrapper.appendChild(content);
                             li.appendChild(wrapper);
                             
-                            // Auto open first level
                             if (path === '') header.click(); 
                         }
                         ul.appendChild(li);
@@ -532,7 +576,9 @@
                 };
 
                 this.ui.fileTree.innerHTML = '';
-                this.ui.fileTree.appendChild(buildDom(tree));
+                const rootUl = buildDom(tree);
+                rootUl.classList.remove('border-l', 'pl-3', 'ml-1.5'); // Clean root styles
+                this.ui.fileTree.appendChild(rootUl);
                 lucide.createIcons();
             },
 
@@ -540,9 +586,8 @@
                 this.state.activeFile = file;
                 const ext = file.name.split('.').pop().toLowerCase();
                 const isImage = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'].includes(ext);
-                const isHtml = ext === 'html';
+                const isHtml = ext === 'html' || ext === 'htm';
                 
-                // UI Toggle Logic
                 const toggleContainer = document.getElementById('static-toggle-container');
                 const tabs = document.getElementById('view-tabs');
                 
@@ -553,7 +598,6 @@
                 } else {
                     toggleContainer.classList.add('hidden');
                     toggleContainer.classList.remove('flex');
-                    // Hide tabs if not html (simplified for now, images auto-show)
                     if (!isImage) tabs.classList.remove('hidden');
                     else tabs.classList.add('hidden');
                 }
@@ -568,18 +612,20 @@
                         document.getElementById('image-preview').src = url;
                         this.switchView('image');
                     } else {
-                        // Text/Code/HTML
                         const text = await file.async('string');
                         
-                        // Set Code View
                         this.ui.codeBlock.textContent = text;
-                        this.ui.codeBlock.className = `language-${ext}`;
+                        // Map extensions to Prism languages if needed, otherwise use simple fallback
+                        const prismLang = ext === 'js' || ext === 'jsx' ? 'javascript' : 
+                                          ext === 'ts' || ext === 'tsx' ? 'typescript' : 
+                                          ext === 'html' ? 'markup' : 
+                                          ext;
+                        this.ui.codeBlock.className = `language-${prismLang}`;
                         Prism.highlightElement(this.ui.codeBlock);
 
                         if (isHtml) {
                             await this.processAndPreviewHtml(file, text);
                             this.switchView('preview');
-                            // Update tabs UI
                             document.querySelector('[data-view="preview"]').click();
                         } else {
                             this.switchView('code');
@@ -597,7 +643,6 @@
             },
 
             async processAndPreviewHtml(file, htmlContent) {
-                // Check cache
                 const cacheKey = file.name + (this.state.isStaticMode ? '_static' : '_dynamic');
                 if (this.state.htmlCache.has(cacheKey)) {
                     this.ui.previewFrame.src = this.state.htmlCache.get(cacheKey);
@@ -607,60 +652,79 @@
                 this.setLoader(true, 'Processing assets...');
 
                 let processedHtml = htmlContent;
-                const folderPath = file.name.substring(0, file.name.lastIndexOf('/'));
+                // Simple folder resolution logic
+                // If file is "folder/sub/index.html", folderPath is "folder/sub"
+                const lastSlash = file.name.lastIndexOf('/');
+                const folderPath = lastSlash !== -1 ? file.name.substring(0, lastSlash) : '';
                 
-                // 1. Process Assets (Images, CSS, JS linked in HTML)
-                // Regex to find src="..." or href="..."
-                const regex = /(src|href)="([^"]+)"/g;
+                // Matches src="...", href="...", content="..." (meta images), poster="..."
+                const regex = /(src|href|poster|content)="([^"]+)"/g;
                 const matches = [...htmlContent.matchAll(regex)];
                 
-                for (const match of matches) {
-                    const attr = match[1]; // src or href
-                    const relativePath = match[2];
-                    
-                    // Skip absolute URLs, anchors, or data URIs
-                    if (relativePath.startsWith('http') || relativePath.startsWith('#') || relativePath.startsWith('data:')) continue;
+                const processBatch = async () => {
+                   for (const match of matches) {
+                        const attr = match[1];
+                        const relativePath = match[2];
+                        
+                        if (relativePath.match(/^(http|https|data:|blob:|#|mailto:|tel:)/)) continue;
 
-                    // Resolve path
-                    // Simplified path resolution handling ../
-                    let absolutePath = relativePath;
-                    if (!relativePath.startsWith('/')) {
-                        const parts = (folderPath ? folderPath + '/' : '') + relativePath;
-                        absolutePath = parts;
-                        // Handle ../ crudely (better path resolver needed for complex apps but works for flat/simple)
-                        while(absolutePath.includes('../')) {
-                           absolutePath = absolutePath.replace(/[^\/]+\/\.\.\//, '');
+                        // Resolve Path
+                        let absolutePath = '';
+                        if (relativePath.startsWith('/')) {
+                            // Absolute path from zip root
+                            absolutePath = relativePath.slice(1);
+                        } else {
+                            // Relative path
+                            const parts = (folderPath ? folderPath + '/' : '') + relativePath;
+                            // Basic normalization for ../
+                            const stack = [];
+                            parts.split('/').forEach(p => {
+                                if (p === '..') stack.pop();
+                                else if (p !== '.') stack.push(p);
+                            });
+                            absolutePath = stack.join('/');
                         }
-                    } else {
-                        absolutePath = relativePath.substring(1);
-                    }
 
-                    const linkedFile = this.state.files[absolutePath];
-                    if (linkedFile) {
-                        const blob = await linkedFile.async('blob');
-                        let mime = 'application/octet-stream';
-                        if (absolutePath.endsWith('.css')) mime = 'text/css';
-                        else if (absolutePath.endsWith('.js')) mime = 'application/javascript';
-                        else if (absolutePath.endsWith('.png')) mime = 'image/png';
-                        
-                        const blobUrl = URL.createObjectURL(new Blob([blob], { type: mime }));
-                        this.state.blobUrls.push(blobUrl);
-                        
-                        // Replace in HTML
-                        processedHtml = processedHtml.replace(match[0], `${attr}="${blobUrl}"`);
+                        // Try to find file
+                        const linkedFile = this.state.files[absolutePath];
+                        if (linkedFile) {
+                            try {
+                                const blob = await linkedFile.async('blob');
+                                let mime = 'application/octet-stream';
+                                const linkExt = absolutePath.split('.').pop().toLowerCase();
+                                if (linkExt === 'css') mime = 'text/css';
+                                else if (linkExt === 'js') mime = 'application/javascript';
+                                else if (['png','jpg','jpeg','gif','svg','webp'].includes(linkExt)) mime = `image/${linkExt === 'svg' ? 'svg+xml' : linkExt}`;
+                                
+                                const blobUrl = URL.createObjectURL(new Blob([blob], { type: mime }));
+                                this.state.blobUrls.push(blobUrl);
+                                
+                                // Replace ALL occurrences of this path to be safe
+                                processedHtml = processedHtml.split(relativePath).join(blobUrl);
+                            } catch(e) { console.warn('Failed to load asset', absolutePath); }
+                        }
                     }
                 }
+                
+                await processBatch();
 
-                // 2. Static Mode Logic
                 if (this.state.isStaticMode) {
-                    // Remove scripts
                     processedHtml = processedHtml.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "");
-                    // Add banner
-                    const banner = `<div style="background:#22c55e;color:white;padding:4px;text-align:center;font-family:sans-serif;font-size:12px;">Static Preview Mode</div>`;
-                    processedHtml = banner + processedHtml;
+                    const banner = `<div style="background:#22c55e;color:white;padding:6px;text-align:center;font-family:system-ui;font-size:12px;font-weight:600;position:fixed;top:0;left:0;right:0;z-index:9999;">Static Preview Mode</div><div style="height:28px"></div>`;
+                    if(processedHtml.includes('<body')) {
+                        processedHtml = processedHtml.replace(/<body[^>]*>/, `$&${banner}`);
+                    } else {
+                        processedHtml = banner + processedHtml;
+                    }
                 }
 
-                // 3. Create Final Blob
+                // Add base for relative links if needed, but blob url replacement handles most
+                // Inject script to catch errors if dynamic
+                if (!this.state.isStaticMode) {
+                   const errScript = `<script>window.onerror = function(msg, url, line) { console.error("Preview Error:", msg); };<\/script>`;
+                   processedHtml = processedHtml.replace('<head>', `<head>${errScript}`);
+                }
+
                 const finalBlob = new Blob([processedHtml], { type: 'text/html' });
                 const finalUrl = URL.createObjectURL(finalBlob);
                 this.state.blobUrls.push(finalUrl);
@@ -710,9 +774,10 @@
             }
         };
 
-        // Initialize on Load
         window.addEventListener('DOMContentLoaded', () => App.init());
 
     </script>
 </body>
 </html>
+
+
